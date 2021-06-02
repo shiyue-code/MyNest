@@ -8,6 +8,6 @@
 * 排版算法策略实现
 
 ## 图片
-[NFP_1](nfp1.jpg)
-[NFP_2](nfp2.jpg)
-[NFP_3](nfp3.jpg)
+![NFP_1](nfp1.jpg)
+![NFP_2](nfp2.jpg)
+![NFP_3](nfp3.jpg)
