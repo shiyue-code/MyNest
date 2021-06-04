@@ -11,6 +11,7 @@
 
 ## 3. no-fit-polygon算法结果
 > 其中白色轨迹为P2图形绕P1图形的npf计算结果
-* [NFP_1](nfp1.jpg)
-* [NFP_2](nfp2.jpg)
-* [NFP_3](nfp3.jpg)
+* ![NFP_1](nfp1.jpg)
+* ![NFP_2](nfp2.jpg)
+* ![NFP_3](nfp3.jpg)
+* ![NFP_4](nfp4.jpg)
