@@ -99,6 +99,10 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
         View2Scr(p0);
 
         painter.drawText(p0, "P1");
+        glPointSize(5);
+        glBegin(GL_POINTS);
+        glVertex2d(p1[0].x, p1[0].y);
+        glEnd();
 
         glBegin(GL_LINE_STRIP);
         for (const auto& pt : p1) {
@@ -122,135 +126,4 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
         View2Scr(p0);
         painter.drawText(p0, "P2");
 
-        glBegin(GL_LINE_STRIP);
-        for (const auto& pt : p2) {
-            glVertex2d(pt.x, pt.y);
-        }
-        glVertex2d(p2[0].x, p2[0].y);
-        glEnd();
-    }
-
-    double x, y;
-    if (!nfps.empty()) {
-        glColor3f(1, 1, 1);
-        glBegin(GL_LINE_STRIP);
-        for (const auto& nfp : nfps) {
-            for (const auto& pt : nfp) {
-                glVertex2d(pt.x, pt.y);
-                x = pt.x;
-                y = pt.y;
-            }
-        }
-        glEnd();
-    }
-
-    if (mode == DrawPolyline2 || mode == DrawPolyline1) {
-        if (!pTmp.empty()) {
-
-            if (mode == DrawPolyline2)
-                glColor3f(1, 1, 0);
-            else
-                glColor3f(0, 1, 0);
-
-            glBegin(GL_LINE_STRIP);
-            for (const auto& pt : pTmp) {
-                glVertex2d(pt.x, pt.y);
-            }
-            glVertex2d(ptCur.x, ptCur.y);
-            glVertex2d(pTmp[0].x, pTmp[0].y);
-            glEnd();
-
-            glBegin(GL_LINE_STRIP);
-            for (const auto& pt : pTmp) {
-                glVertex2d(pt.x, pt.y);
-            }
-
-            glVertex2d(pTmp[0].x, pTmp[0].y);
-            glEnd();
-        }
-    }
-
-    painter.restore();
-}
-
-void MyCtrlView::setPointSize(int size)
-{
-    pointSize = size;
-}
-
-void MyCtrlView::setNFPs(const std::vector<MyCtrlView::Polyline>& nfp)
-{
-    nfps = nfp;
-}
-
-void MyCtrlView::setPolyline(const MyCtrlView::Polyline& p1, const MyCtrlView::Polyline& p2)
-{
-    this->p1 = p1;
-    this->p2 = p2;
-}
-
-void MyCtrlView::getPolyline(MyCtrlView::Polyline& p1, MyCtrlView::Polyline& p2)
-{
-    p1 = this->p1;
-    p2 = this->p2;
-}
-
-void MyCtrlView::mouseDoubleClickEvent(QMouseEvent* evt)
-{
-    if (evt->button() == Qt::LeftButton)
-        ResetView();
-
-    return KWCtrlView::mouseDoubleClickEvent(evt);
-}
-
-void MyCtrlView::mousePressEvent(QMouseEvent* evt)
-{
-    if (evt->button() == Qt::LeftButton) {
-        switch (mode) {
-        case DrawPolyline1: {
-            auto pt = evt->localPos();
-            Scr2View(pt);
-            pTmp.add({ pt.x(), pt.y() });
-        } break;
-        case DrawPolyline2: {
-            auto pt = evt->localPos();
-            Scr2View(pt);
-            pTmp.add({ pt.x(), pt.y() });
-        } break;
-        }
-    }
-
-    return KWCtrlView::mousePressEvent(evt);
-}
-
-void MyCtrlView::mouseReleaseEvent(QMouseEvent* evt)
-{
-    if (evt->button() == Qt::RightButton) {
-
-        if (!pTmp.empty()) {
-            switch (mode) {
-            case DrawPolyline1: {
-                p1 = pTmp;
-            } break;
-            case DrawPolyline2: {
-                p2 = pTmp;
-            } break;
-            }
-
-            pTmp.clear();
-            mode = View;
-        }
-    }
-
-    return KWCtrlView::mouseReleaseEvent(evt);
-}
-
-void MyCtrlView::mouseMoveEvent(QMouseEvent* evt)
-{
-    auto pt = evt->localPos();
-    Scr2View(pt);
-    ptCur.x = pt.x();
-    ptCur.y = pt.y();
-
-    return KWCtrlView::mouseMoveEvent(evt);
-}
+        glPointSize(5)

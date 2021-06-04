@@ -22,6 +22,8 @@ private slots:
 
     void onExec();
 
+    void onNest();
+
 private:
     Ui::Widget* ui;
 };

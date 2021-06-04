@@ -1,18 +1,18 @@
 #include "kwctrlview.h"
 
-#include <QMouseEvent>
 #include <QDebug>
+#include <QMouseEvent>
 #include <QPainter>
 
-#include <ctime>
 #include <cmath>
+#include <ctime>
 
-# ifndef ARM
+#ifndef ARM
 #include <gl/GLU.h>
 
-using namespace  std;
+using namespace std;
 
-KWCtrlView::KWCtrlView(QWidget *parent)
+KWCtrlView::KWCtrlView(QWidget* parent)
     : QOpenGLWidget(parent)
     , QOpenGLFunctions()
 {
@@ -24,7 +24,7 @@ KWCtrlView::~KWCtrlView()
 
 void KWCtrlView::ResetView()
 {
-    if(!isValid())
+    if (!isValid())
         return;
     int deltaX = m_bCoordMirrorX ? -1 : 1;
     int deltaY = m_bCoordMirrorY ? -1 : 1;
@@ -52,9 +52,9 @@ void KWCtrlView::SetCoordMirrorY(bool bMirror)
     ResetView();
 }
 
-void KWCtrlView::DrawTick(QPainter &painter)
+void KWCtrlView::DrawTick(QPainter& painter)
 {
-    if(!m_bShowTick)
+    if (!m_bShowTick)
         return;
 
     glColor(m_clrTick);
@@ -78,7 +78,7 @@ void KWCtrlView::DrawTick(QPainter &painter)
     Scr2View(ptLeftBot);
     Scr2View(ptRightTop);
 
-    double delta = fabs((min(fabs(ptLeftBot.y() - ptRightTop.y()), fabs(ptRightTop.x() - ptLeftBot.x() ))) / 50.0 );
+    double delta = fabs((min(fabs(ptLeftBot.y() - ptRightTop.y()), fabs(ptRightTop.x() - ptLeftBot.x()))) / 50.0);
     double delta2 = delta * 1.5;
 
     int pix = 5;
@@ -88,30 +88,24 @@ void KWCtrlView::DrawTick(QPainter &painter)
 
     int modx = 5, mody = 5;
     double height = fabs(ptLeftTop.y() - ptLeftBot.y());
-    if(height > 1 && rect.height() > 1)
-    {
+    if (height > 1 && rect.height() > 1) {
         stepy = round(pix / (rect.height() / height));
         stepy = stepy == 0 ? 1 : stepy;
-    }
-    else
-    {
+    } else {
         stepy = 1;
     }
 
     stepy *= deltaY;
     mody = 5 * stepy;
     int ys = int(ptLeftBot.y());
-    ys = (ys / mody ) * mody - mody;
+    ys = (ys / mody) * mody - mody;
 
     pix = 10;
     double width = fabs(ptLeftTop.x() - ptRightTop.x());
-    if(width > 1 && rect.width() > 1)
-    {
+    if (width > 1 && rect.width() > 1) {
         stepx = round(pix / (rect.width() / width));
         stepx = stepx == 0 ? 1 : stepx;
-    }
-    else
-    {
+    } else {
         stepx = 1;
     }
     stepx *= deltaX;
@@ -125,8 +119,7 @@ void KWCtrlView::DrawTick(QPainter &painter)
 
     //! 竖直画标线
     glBegin(GL_LINES);
-    for (y = ys ; (m_bCoordMirrorY ?  y >= ye : y <= ye); y += stepy)
-    {
+    for (y = ys; (m_bCoordMirrorY ? y >= ye : y <= ye); y += stepy) {
         glVertex2d(ptLeftTop.x(), y);
         if (y % mody == 0)
             glVertex2d(ptLeftTop.x() + delta2 * deltaX, y);
@@ -135,14 +128,13 @@ void KWCtrlView::DrawTick(QPainter &painter)
 
         glVertex2d(ptRightTop.x(), y);
         if (y % mody == 0)
-            glVertex2d(ptRightTop.x() - delta2 * deltaX , y);
+            glVertex2d(ptRightTop.x() - delta2 * deltaX, y);
         else
             glVertex2d(ptRightTop.x() - delta * deltaX, y);
     }
 
     ///画水平刻度
-    for (x = xs ; (m_bCoordMirrorX ? x >= xe : x <= xe); x += stepx)
-    {
+    for (x = xs; (m_bCoordMirrorX ? x >= xe : x <= xe); x += stepx) {
         glVertex2d(x, ptLeftTop.y());
         if (x % modx == 0)
             glVertex2d(x, ptLeftTop.y() - delta2 * deltaY);
@@ -175,12 +167,12 @@ void KWCtrlView::DrawTick(QPainter &painter)
     glBegin(GL_TRIANGLES);
     glColor3f(1.0f, 0.2f, 0.0f);
     glVertex2d(ptLeftBot.x() + deltaDir2 * deltaX + deltaDir + e, ptLeftBot.y() + deltaDir2 * deltaY);
-    glVertex2d(ptLeftBot.x() + deltaDir2 * deltaX + deltaDir, ptLeftBot.y() + (deltaDir2 + e / sqrt(3.0))* deltaY);
-    glVertex2d(ptLeftBot.x() + deltaDir2 * deltaX + deltaDir, ptLeftBot.y() + (deltaDir2 - e / sqrt(3.0))* deltaY);
+    glVertex2d(ptLeftBot.x() + deltaDir2 * deltaX + deltaDir, ptLeftBot.y() + (deltaDir2 + e / sqrt(3.0)) * deltaY);
+    glVertex2d(ptLeftBot.x() + deltaDir2 * deltaX + deltaDir, ptLeftBot.y() + (deltaDir2 - e / sqrt(3.0)) * deltaY);
 
     glColor3f(0.0f, 0.2f, 1.0f);
     glVertex2d(ptLeftBot.x() + deltaDir2 * deltaX, ptLeftBot.y() + deltaDir2 * deltaY + deltaDir + e);
-    glVertex2d(ptLeftBot.x() + (deltaDir2 + e / sqrt(3.0))* deltaX, ptLeftBot.y() + deltaDir2 * deltaY + deltaDir);
+    glVertex2d(ptLeftBot.x() + (deltaDir2 + e / sqrt(3.0)) * deltaX, ptLeftBot.y() + deltaDir2 * deltaY + deltaDir);
     glVertex2d(ptLeftBot.x() + (deltaDir2 - e / sqrt(3.0)) * deltaX, ptLeftBot.y() + deltaDir2 * deltaY + deltaDir);
     glEnd();
 
@@ -188,10 +180,8 @@ void KWCtrlView::DrawTick(QPainter &painter)
     painter.setPen(m_clrTick);
 
     ///画竖直刻度数字
-    for (y = ys + mody ; (m_bCoordMirrorY ?  y >= ye : y <= ye); y += stepy)
-    {
-        if (y % mody == 0)
-        {
+    for (y = ys + mody; (m_bCoordMirrorY ? y >= ye : y <= ye); y += stepy) {
+        if (y % mody == 0) {
             str.setNum(y);
             tPt.rx() = ptLeftTop.x() + delta2 * deltaX;
             tPt.ry() = y;
@@ -199,10 +189,8 @@ void KWCtrlView::DrawTick(QPainter &painter)
             painter.drawText(tPt.x(), tPt.y(), str);
         }
     }
-    for (x = xs + modx; (m_bCoordMirrorX ? x >= xe : x <= xe); x += stepx)
-    {
-        if (x % modx == 0)
-        {
+    for (x = xs + modx; (m_bCoordMirrorX ? x >= xe : x <= xe); x += stepx) {
+        if (x % modx == 0) {
             str.setNum(x);
             tPt.rx() = x;
             tPt.ry() = ptLeftBot.y() + delta2 * deltaY;
@@ -213,10 +201,10 @@ void KWCtrlView::DrawTick(QPainter &painter)
     painter.restore();
 }
 
-void KWCtrlView::DrawOrigin(QPainter &painter)
+void KWCtrlView::DrawOrigin(QPainter& painter)
 {
     Q_UNUSED(painter)
-    if(!m_bshowOrigin)
+    if (!m_bshowOrigin)
         return;
     double nRatio = 20 * m_fScale;
     double dL = max(m_dViewH, m_dViewW);
@@ -237,7 +225,7 @@ void KWCtrlView::DrawOrigin(QPainter &painter)
 
 void KWCtrlView::DrawCross()
 {
-    if(!m_bShowCross || m_bLButtonDown || m_bRButtonDown || !m_bActiveMouse)
+    if (!m_bShowCross || m_bLButtonDown || m_bRButtonDown || !m_bActiveMouse)
         return;
     glColor3f(0.9f, 0.9f, 0.8f);
     glBegin(GL_LINES);
@@ -248,27 +236,26 @@ void KWCtrlView::DrawCross()
     glEnd();
 }
 
-void KWCtrlView::Scr2View(QPointF &pt)
+void KWCtrlView::Scr2View(QPointF& pt)
 {
-    QRect ClientRect = this->rect();		// 获取视口区域大小
+    QRect ClientRect = this->rect(); // 获取视口区域大小
 
-    float w = ClientRect.width();		// 窗口宽度 w
-    float h = ClientRect.height();		// 窗口高度 h
+    float w = ClientRect.width(); // 窗口宽度 w
+    float h = ClientRect.height(); // 窗口高度 h
     float aspect = w / h;
 
-    if (h == 0)
-    {
+    if (h == 0) {
         aspect = w;
     }
 
-    float centex = w / 2;		// 中心位置
-    float centey = h / 2;		// 中心位置
+    float centex = w / 2; // 中心位置
+    float centey = h / 2; // 中心位置
 
     int deltaX = m_bCoordMirrorX ? -1 : 1;
     int deltaY = m_bCoordMirrorY ? -1 : 1;
 
     // 屏幕的视觉宽度为 m_dViewHeight * aspect
-    float tmpx = deltaX * 2 * m_dViewH * aspect * (pt.x() - centex) / w;	// 屏幕上点坐标转化为OpenGL画图的规范坐标
+    float tmpx = deltaX * 2 * m_dViewH * aspect * (pt.x() - centex) / w; // 屏幕上点坐标转化为OpenGL画图的规范坐标
     float tmpy = deltaY * 2 * m_dViewH * (centey - pt.y()) / h;
     pt = QPointF(tmpx, tmpy);
 
@@ -276,56 +263,54 @@ void KWCtrlView::Scr2View(QPointF &pt)
     ScaleAndTrans(pt);
 }
 
-void KWCtrlView::View2Scr(QPointF &pt)
+void KWCtrlView::View2Scr(QPointF& pt)
 {
     pt.rx() += m_dXTrans;
     pt.rx() *= m_fScale;
     pt.ry() += m_dYTrans;
     pt.ry() *= m_fScale;
-    QRect ClientRect = this->rect();		// 获取视口区域大小
+    QRect ClientRect = this->rect(); // 获取视口区域大小
 
-    int w = ClientRect.width();		// 窗口宽度 w
-    int h = ClientRect.height();		// 窗口高度 h
+    int w = ClientRect.width(); // 窗口宽度 w
+    int h = ClientRect.height(); // 窗口高度 h
     double aspect = (double)w / h;
 
-    if (h == 0)
-    {
+    if (h == 0) {
         aspect = w;
     }
 
-    double centex = w / 2;		// 中心位置
-    double centey = h / 2;		// 中心位置
+    double centex = w / 2; // 中心位置
+    double centey = h / 2; // 中心位置
 
     // 屏幕的视觉宽度为 m_dViewHeight * aspect
     double tmpx, tmpy;
     int deltaX = m_bCoordMirrorX ? -1 : 1;
     int deltaY = m_bCoordMirrorY ? -1 : 1;
 
-    tmpx = deltaX * pt.x()*w / 2 / m_dViewH / aspect + centex;//OpenGL画图的规范坐标转化为屏幕上点坐标
-    tmpy = centey - deltaY * pt.y()*h / 2 / m_dViewH;
+    tmpx = deltaX * pt.x() * w / 2 / m_dViewH / aspect + centex; //OpenGL画图的规范坐标转化为屏幕上点坐标
+    tmpy = centey - deltaY * pt.y() * h / 2 / m_dViewH;
     pt = QPointF(tmpx, tmpy);
 }
 
-void KWCtrlView::ScaleAndTrans(QPointF &pt)
+void KWCtrlView::ScaleAndTrans(QPointF& pt)
 {
     Scale(pt);
     Trans(pt);
 }
 
-void KWCtrlView::Scale(QPointF &pt)
+void KWCtrlView::Scale(QPointF& pt)
 {
     pt.rx() /= m_fScale;
     pt.ry() /= m_fScale;
-
 }
 
-void KWCtrlView::Trans(QPointF &pt)
+void KWCtrlView::Trans(QPointF& pt)
 {
     pt.rx() -= m_dXTrans;
     pt.ry() -= m_dYTrans;
 }
 
-void KWCtrlView::DrawArrow(const QPointF &ptStart, const QPointF &ptEnd, bool bBoth, int arrowsize, float lineW)
+void KWCtrlView::DrawArrow(const QPointF& ptStart, const QPointF& ptEnd, bool bBoth, int arrowsize, float lineW)
 {
     glLineWidth(lineW);
 
@@ -364,8 +349,7 @@ void KWCtrlView::DrawArrow(const QPointF &ptStart, const QPointF &ptEnd, bool bB
     ViewPoint(pt1);
     glEnd();
 
-    if (bBoth)
-    {
+    if (bBoth) {
         ptTmp = ptStart - L * dir.toPointF();
         pt0 = ptTmp + W * dirT.toPointF();
         pt1 = ptTmp - W * dirT.toPointF();
@@ -380,7 +364,7 @@ void KWCtrlView::DrawArrow(const QPointF &ptStart, const QPointF &ptEnd, bool bB
 
 void KWCtrlView::DrawSelectBox()
 {
-    if(!m_bShowSelBox)
+    if (!m_bShowSelBox)
         return;
     glColor3f(1.0f, 1.0f, 1.0f);
     glEnable(GL_LINE_STIPPLE);
@@ -410,12 +394,12 @@ void KWCtrlView::SetTextureOffset(int i, double x, double y)
     m_ptTextureOffset[i].ry() = y;
 }
 
-void KWCtrlView::ViewPoint(const QPointF &_pt)
+void KWCtrlView::ViewPoint(const QPointF& _pt)
 {
     glVertex2d(_pt.x(), _pt.y());
 }
 
-void KWCtrlView::ScrPint(const QPointF &pt)
+void KWCtrlView::ScrPint(const QPointF& pt)
 {
     QPointF _pt = pt;
     Scr2View(_pt);
@@ -464,12 +448,9 @@ void KWCtrlView::resizeGL(int width, int height)
     gWidth = width;
     gHeight = height;
 
-    if (height == 0)
-    {
+    if (height == 0) {
         aspect = (GLdouble)gWidth;
-    }
-    else
-    {
+    } else {
         aspect = (GLdouble)gWidth / (GLdouble)gHeight;
     }
     int deltaX = m_bCoordMirrorX ? -1 : 1;
@@ -485,7 +466,7 @@ void KWCtrlView::resizeGL(int width, int height)
 
 void KWCtrlView::paintGL()
 {
-    if(!isValid())
+    if (!isValid())
         return;
     glClear(GL_COLOR_BUFFER_BIT);
     glLoadIdentity();
@@ -496,10 +477,8 @@ void KWCtrlView::paintGL()
     glLineWidth(m_fLineWidth);
     glPointSize(m_fPointSize);
 
-    for(int i = 0; i < 2; ++i)
-    {
-        if(IsTextureVisiable(i))
-        {
+    for (int i = 0; i < 2; ++i) {
+        if (IsTextureVisiable(i)) {
             glBindTexture(GL_TEXTURE_2D, m_texture[i]);
             DrawTexture(i);
         }
@@ -530,20 +509,16 @@ void KWCtrlView::paintGL()
     glFlush();
 }
 
-void KWCtrlView::mouseMoveEvent(QMouseEvent *event)
+void KWCtrlView::mouseMoveEvent(QMouseEvent* event)
 {
     QPointF ptScr = QPointF(event->pos().x(), event->pos().y());
     QPointF ptView = ptScr;
     Scr2View(ptView);
-    if (m_bActiveMouse)
-    {
-        if(m_bLButtonDown)
-        {//左键按下，移动鼠标
+    if (m_bActiveMouse) {
+        if (m_bLButtonDown) { //左键按下，移动鼠标
             m_ptEnd = ptView;
             m_rectSelectingBox.setCoords(m_ptStart.x(), m_ptStart.y(), m_ptEnd.x(), m_ptEnd.y());
-        }
-        else if(m_bRButtonDown)
-        {//右键按下，移动鼠标
+        } else if (m_bRButtonDown) { //右键按下，移动鼠标
             m_ptEnd = ptView;
             m_ptEnd.rx() += m_dXTrans;
             m_ptEnd.ry() += m_dYTrans;
@@ -558,20 +533,17 @@ void KWCtrlView::mouseMoveEvent(QMouseEvent *event)
     QOpenGLWidget::mouseMoveEvent(event);
 }
 
-void KWCtrlView::mousePressEvent(QMouseEvent *event)
+void KWCtrlView::mousePressEvent(QMouseEvent* event)
 {
     QPointF ptScr = QPointF(event->pos().x(), event->pos().y());
     QPointF ptView = ptScr;
     Scr2View(ptView);
 
-    if(event->button() & Qt::LeftButton)
-    {//左键按下
-        m_ptStart  = m_ptEnd = ptView;
+    if (event->button() & Qt::LeftButton) { //左键按下
+        m_ptStart = m_ptEnd = ptView;
         m_bLButtonDown = true;
         MouseLButtonPressed(ptView, ptScr);
-    }
-    else if(event->button() & Qt::RightButton)
-    {//鼠标右键
+    } else if (event->button() & Qt::RightButton) { //鼠标右键
         //记录位置
         m_ptStart = ptView;
         m_ptStart.rx() += m_dXTrans;
@@ -588,20 +560,17 @@ void KWCtrlView::mousePressEvent(QMouseEvent *event)
     QOpenGLWidget::mousePressEvent(event);
 }
 
-void KWCtrlView::mouseReleaseEvent(QMouseEvent *event)
+void KWCtrlView::mouseReleaseEvent(QMouseEvent* event)
 {
     QPointF ptScr = QPointF(event->pos().x(), event->pos().y());
     QPointF ptView = ptScr;
     Scr2View(ptView);
-    if(event->button() & Qt::LeftButton)
-    {
+    if (event->button() & Qt::LeftButton) {
         m_bLButtonDown = false;
-        m_ptStart  = m_ptEnd = ptView;
-        m_rectSelectingBox.setSize(QSize());//ptView, ptView);
+        m_ptStart = m_ptEnd = ptView;
+        m_rectSelectingBox.setSize(QSize(0, 0)); //ptView, ptView);
         MouseLButtonReleased(ptView, ptScr);
-    }
-    else if(event->button() & Qt::RightButton)
-    {
+    } else if (event->button() & Qt::RightButton) {
         m_ptEnd = ptView;
         m_ptEnd.rx() += m_dXTrans;
         m_ptEnd.ry() += m_dYTrans;
@@ -612,7 +581,7 @@ void KWCtrlView::mouseReleaseEvent(QMouseEvent *event)
     QOpenGLWidget::mouseReleaseEvent(event);
 }
 
-void KWCtrlView::wheelEvent(QWheelEvent *event)
+void KWCtrlView::wheelEvent(QWheelEvent* event)
 {
     QPointF pt(event->pos().x(), event->pos().y());
     QPointF ptOrg, ptTar;
@@ -623,8 +592,7 @@ void KWCtrlView::wheelEvent(QWheelEvent *event)
     ptOrg.ry() = ptView.y();
 
     m_fScale += m_fScale * m_fZoomStep * event->delta() / 240;
-    if (m_fScale < 0.0001f)
-    {
+    if (m_fScale < 0.0001f) {
         m_fScale = 0.0001f;
     }
 
@@ -640,23 +608,20 @@ void KWCtrlView::wheelEvent(QWheelEvent *event)
     QOpenGLWidget::wheelEvent(event);
 }
 
-void KWCtrlView::mouseDoubleClickEvent(QMouseEvent *event)
+void KWCtrlView::mouseDoubleClickEvent(QMouseEvent* event)
 {
     QPointF ptScr = QPointF(event->pos().x(), event->pos().y());
     QPointF ptView = ptScr;
     Scr2View(ptView);
 
-    if(event->button() & Qt::LeftButton)
-    {
+    if (event->button() & Qt::LeftButton) {
         MouseLDoubleClick(ptView, ptScr);
-    }
-    else if(event->button() & Qt::RightButton)
-    {
+    } else if (event->button() & Qt::RightButton) {
         MouseLDoubleClick(ptView, ptScr);
     }
 }
 
-void KWCtrlView::enterEvent(QEvent *evt)
+void KWCtrlView::enterEvent(QEvent* evt)
 {
 
     m_bActiveMouse = true;
@@ -664,7 +629,7 @@ void KWCtrlView::enterEvent(QEvent *evt)
     QOpenGLWidget::enterEvent(evt);
 }
 
-void KWCtrlView::leaveEvent(QEvent *evt)
+void KWCtrlView::leaveEvent(QEvent* evt)
 {
     m_bActiveMouse = false;
     setMouseTracking(false);
@@ -672,188 +637,6 @@ void KWCtrlView::leaveEvent(QEvent *evt)
     update();
 }
 
-void KWCtrlView::BindTexture(const QImage &img, int i)
+void KWCtrlView::BindTexture(const QImage& img, int i)
 {
-    if(img.format() != QImage::Format_Indexed8)
-    {
-        //qDebug() << img.format();
-        return;
-    }
-    m_imgTexture[i] = img;
-    glBindTexture (GL_TEXTURE_2D, m_texture[i]);
-
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, img.width(), img.height(), 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, img.bits());
-}
-
-void KWCtrlView::DrawTexture(int i)
-{
-    glEnable(GL_TEXTURE_2D);
-
-//    glColor3f(0.8, 0.8, 0.8);
-
-    glBegin(GL_POLYGON);
-
-    glTexCoord2f(0.0, 0.0); glVertex2f(m_ptTextureOffset[i].x(), m_ptTextureOffset[i].y());
-    glTexCoord2f(0.0, 1.0); glVertex2f(m_ptTextureOffset[i].x(), m_ptTextureOffset[i].y()+m_imgTexture[i].height());
-    glTexCoord2f(1.0, 1.0); glVertex2f(m_ptTextureOffset[i].x()+m_imgTexture[i].width(), m_ptTextureOffset[i].y()+m_imgTexture[i].height());
-    glTexCoord2f(1.0, 0.0); glVertex2f(m_ptTextureOffset[i].x()+m_imgTexture[i].width(), m_ptTextureOffset[i].y());
-
-    glEnd();
-
-    glDisable(GL_TEXTURE_2D);
-}
-
-void KWCtrlView::glColor(const QColor &clr)
-{
-    glColor3f(clr.red() / 255.0, clr.green() / 255.0, clr.blue() / 255.0);
-}
-# else
-
-KWCtrlView::KWCtrlView(QWidget *parent)
-    :QWidget(parent)
-{
-   m_tmUpdate.start(200, this);
-}
-
-KWCtrlView::~KWCtrlView()
-{
-
-}
-
-void KWCtrlView::ResetView()
-{
-    m_matrix.reset();
-}
-
-void KWCtrlView::SetShapeSet(const GrShapeSetSPtr &pShapeSet)
-{
-    if(!pShapeSet->Size())
-        return;
-    Box box;
-    pShapeSet->GetBBox(box);
-    _window.setCoords(box.xmin(), box.ymin(), box.xmax(), box.ymax());
-    //m_painter->setViewport(this->rect());
-    //m_painter->scale(max(rect().width() / box.Width(), rect().height() / box.Height()), max(rect().width() / box.Width(), rect().height() / box.Height()));
-    QPainterPath path;
-    auto iterShape = pShapeSet->ShapeBegin();
-    Shape* pShape = nullptr;
-    std::vector<QPointF> pts;
-    for (iterShape = pShapeSet->ShapeBegin(); iterShape != pShapeSet->ShapeEnd(); ++iterShape)
-    {
-        pts.clear();
-        pShape = (*iterShape);
-        pShape->GetPoints(pts);
-        for (size_t i = 0; i < pts.size(); ++i )
-        {
-            i == 0 ? path.moveTo(pts[i].x() , pts[i].y()):
-                     path.lineTo(pts[i].x() , pts[i].y());
-        }
-    }
-    QPixmap pix(rect().width(),rect().height());
-    pShapeSet->CreatePixmap(pix);
-    m_pix.swap(pix);
-    m_drawPath.swap(path);
-
-}
-
-void KWCtrlView::RestoreMode()
-{
-
-}
-
-void KWCtrlView::UpdateMode()
-{
-
-}
-
-void KWCtrlView::setSortedFlag(bool b)
-{
-
-}
-
-void KWCtrlView::SetMultipSel(bool b)
-{
-
-}
-
-void KWCtrlView::EnterDrawMode(int nMode)
-{
-
-}
-
-void KWCtrlView::SetShapeTechnology(int nTech)
-{
-
-}
-
-void KWCtrlView::paintEvent(QPaintEvent *evt)
-{
-    QPainter painter(this);
-    QPen pen = QPen(QColor(Qt::green));
-    painter.setBackground(QBrush(QColor(Qt::black)));
-    pen.setWidth(50);
-    painter.setPen(pen);
-    painter.resetMatrix();
-    painter.translate(offset, offset);
-
-    painter.setViewport(rect());
-    painter.setWindow(_window);
-    painter.drawPixmap(_window, m_pix);
-    painter.end();
-    QWidget::paintEvent(evt);
-}
-
-void KWCtrlView::mouseMoveEvent(QMouseEvent *event)
-{
-    static int delta = 100;
-    if(offset > 10000 || offset <= -1000)
-        delta = -delta;
-
-    offset += delta;
-    //update();
-    return QWidget::mouseMoveEvent(event);
-}
-
-void KWCtrlView::mousePressEvent(QMouseEvent *evt)
-{
-    if(evt->button() == Qt::LeftButton)
-    {
-        m_bLButtonDown = true;
-    }
-    else
-    {
-        m_bRButtonDown = true;
-    }
-}
-
-void KWCtrlView::mouseReleaseEvent(QMouseEvent *evt)
-{
-    if(evt->button() == Qt::LeftButton)
-    {
-        m_bLButtonDown = false;
-    }
-    else
-    {
-        m_bRButtonDown = false;
-    }
-}
-
-void KWCtrlView::timerEvent(QTimerEvent *evt)
-{
-    if(m_tmUpdate.timerId() == evt->timerId() && m_bLButtonDown)
-    {
-        update();
-    }
-    else
-    {
-        QWidget::timerEvent(evt);
-    }
-}
-
-
-
-
-#endif
+    if (img.format() != QIma

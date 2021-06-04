@@ -30,6 +30,8 @@ public:
 
     void getPolyline(Polyline& p1, Polyline& p2);
 
+    void setNestPoly(const std::vector<Polyline>& np);
+
 protected:
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
@@ -44,7 +46,7 @@ private:
 
     Polyline p1;
     Polyline p2;
-    std::vector<Polyline> nfps;
+    std::vector<Polyline> nfps, nestPoly;
 
     Polyline pTmp;
     Point ptCur;

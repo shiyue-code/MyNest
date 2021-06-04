@@ -54,7 +54,10 @@ private:
     typedef std::vector<Touch> TouchVec;
 
 public:
+    NfpPlacer() = default;
     NfpPlacer(CPolylineRef A, CPolylineRef B);
+
+    void set(CPolylineRef A, CPolylineRef B);
 
     void exec();
 
@@ -79,6 +82,8 @@ private:
     Polyline polyB;
 
     Container nfps;
+
+    bool isExecute = false;
 };
 
 }

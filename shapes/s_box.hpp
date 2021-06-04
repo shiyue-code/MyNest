@@ -73,6 +73,26 @@ public:
         return valid;
     }
 
+    Point leftTop() const
+    {
+        return this->p0;
+    }
+
+    Point rightBottom() const
+    {
+        return this->p1;
+    }
+
+    Point leftBottom() const
+    {
+        return { this->p0.x, this->p1.y };
+    }
+
+    Point rightTop() const
+    {
+        return { this->p1.x, this->p0.y };
+    }
+
     Point center() const
     {
         return (this->p0 + this->p1) * 0.5;

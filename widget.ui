@@ -35,7 +35,14 @@
      </property>
     </widget>
    </item>
-   <item row="0" column="0" colspan="3">
+   <item row="1" column="3">
+    <widget class="QPushButton" name="btnNest">
+     <property name="text">
+      <string>排版</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="0" colspan="4">
     <widget class="MyCtrlView" name="openGLWidget"/>
    </item>
   </layout>

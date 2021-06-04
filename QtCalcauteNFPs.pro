@@ -11,6 +11,7 @@ CONFIG += c++11
 SOURCES += \
     actions/s_action.cpp \
     main.cpp \
+    nest/clipper/clipper.cpp \
     nest/nest2d.cpp \
     nest/nesttools.cpp \
     nest/nfpplacer.cpp \
@@ -27,6 +28,7 @@ SOURCES += \
 
 HEADERS += \
     actions/s_action.h \
+    nest/clipper/clipper.hpp \
     nest/nfpplacer.h \
     s_common.hpp \
     nest/nest2d.h \

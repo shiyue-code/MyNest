@@ -26,7 +26,7 @@ inline T eps(T)
 template <>
 inline double eps<double>(double)
 {
-    return 0.000000001;
+    return 0.00000001;
 }
 
 //非基础数据类型使用该模板
