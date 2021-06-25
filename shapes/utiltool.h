@@ -1,4 +1,4 @@
-#ifndef UTILTOOL_H
+﻿#ifndef UTILTOOL_H
 #define UTILTOOL_H
 
 #include "s_box.hpp"
@@ -29,6 +29,10 @@ static Box<T> calcBoundingBox(const Polyline<T>& path)
     return box;
 }
 
+/*!
+ * Remove duplicate points
+ */
+
 template <typename T>
 static void cleanPolygon(Polyline<T>& path)
 {
@@ -58,9 +62,7 @@ static Point<T> intersect(const Point<T>& p0, const Point<T>& p1, const Point<T>
     // pt = p2 + u* (p3-p2)
     T u = -d021 / d01;
 
-    if (k < 1 && k > 0 && u < 1 && u > 0) {
-        return p2 + (p3 - p2) * u;
-    } else if (isEqual(T(0), k)) {
+    if (isEqual(T(0), k)) {
         return p0;
     } else if (isEqual(T(1), k)) {
         return p1;
@@ -68,6 +70,8 @@ static Point<T> intersect(const Point<T>& p0, const Point<T>& p1, const Point<T>
         return p2;
     } else if (isEqual(T(1), u)) {
         return p3;
+    } else if (k < 1 && k > 0 && u < 1 && u > 0) {
+        return p2 + (p3 - p2) * u;
     }
 
     return {};
@@ -113,11 +117,10 @@ static ClipperLib::Paths Intersection(const ClipperLib::Path& p1, const ClipperL
     return combinedNfp;
 }
 
-static ClipperLib::Paths Union(const ClipperLib::Path& p1, const ClipperLib::Path& p2)
+static ClipperLib::Paths Union(const ClipperLib::Paths& paths)
 {
     ClipperLib::Clipper clipper;
-    clipper.AddPath(p1, ClipperLib::PolyType::ptSubject, true);
-    clipper.AddPath(p2, ClipperLib::PolyType::ptSubject, true);
+    clipper.AddPaths(paths, ClipperLib::PolyType::ptClip, true);
 
     ClipperLib::Paths combinedNfp;
     clipper.Execute(ClipperLib::ClipType::ctUnion,

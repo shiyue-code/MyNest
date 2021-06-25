@@ -1,4 +1,4 @@
-#include "myctrlview.h"
+﻿#include "myctrlview.h"
 
 #include "shapes/s_point.hpp"
 #include "shapes/s_polyline.hpp"
@@ -6,6 +6,7 @@
 
 #include <QMouseEvent>
 #include <QPainter>
+#include <functional>
 
 using namespace S_Shape2D;
 
@@ -126,4 +127,213 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
         View2Scr(p0);
         painter.drawText(p0, "P2");
 
-        glPointSize(5)
+        glPointSize(5);
+        glBegin(GL_POINTS);
+        glVertex2d(p2[0].x, p2[0].y);
+        glEnd();
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glBegin(GL_POLYGON);
+        for (const auto& pt : p2) {
+            glVertex2d(pt.x, pt.y);
+        }
+        glEnd();
+    }
+
+    double x, y;
+    if (!nfps.empty()) {
+        glColor3f(1, 1, 1);
+        for (const auto& nfp : nfps) {
+
+            glPointSize(5);
+            glBegin(GL_POINTS);
+            glVertex2d(nfp[0].x, nfp[0].y);
+            glEnd();
+
+            glBegin(GL_LINE_STRIP);
+            for (const auto& pt : nfp) {
+                glVertex2d(pt.x, pt.y);
+                x = pt.x;
+                y = pt.y;
+            }
+            glEnd();
+        }
+    }
+
+    //        图形跟随鼠标
+    //    if (!p1.empty()) {
+    //        auto p = p2;
+    //        //        p.rotate(pi);
+    //        double xs = ptCur.x - p[0].x;
+    //        double ys = ptCur.y - p[0].y;
+    //        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    //        glBegin(GL_POLYGON);
+    //        for (const auto& pt : p) {
+    //            glVertex2d(pt.x + xs, pt.y + ys);
+    //        }
+    //        glEnd();
+    //        glColor3f(1, 1, 1);
+    //    }
+
+    auto func = [&](std::vector<Polyline>& nestPolys){
+        if (!nestPolys.empty()) {
+
+            int i = 3;
+            bool vi = true;
+            for (const auto& nfp : nestPolys) {
+
+                if (i-- > 0)
+                    glColor3f(1, 1, 0);
+                else
+                    glColor3f(0, 1, 1);
+
+                if (vi) {
+                    double xs = ptCur.x - nfp[0].x;
+                    double ys = ptCur.y - nfp[0].y;
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                    glBegin(GL_POLYGON);
+                    for (const auto& pt : nfp) {
+                        glVertex2d(pt.x + xs, pt.y + ys);
+                    }
+                    glEnd();
+                    vi = false;
+                }
+
+                glPointSize(5);
+                glBegin(GL_POINTS);
+                auto pt = nfp[0];
+                /*for (const auto& pt : nfp)*/ {
+                    glVertex2d(pt.x, pt.y);
+                }
+                glEnd();
+
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                glBegin(GL_POLYGON);
+                for (const auto& pt : nfp) {
+                    glVertex2d(pt.x, pt.y);
+                }
+                glEnd();
+            }
+        }
+    };
+    func(nestPoly);
+    func(nestPoly2);
+
+
+    if (mode == DrawPolyline2 || mode == DrawPolyline1) {
+        if (!pTmp.empty()) {
+
+            if (mode == DrawPolyline2)
+                glColor3f(1, 1, 0);
+            else
+                glColor3f(0, 1, 0);
+
+            glBegin(GL_LINE_STRIP);
+            for (const auto& pt : pTmp) {
+                glVertex2d(pt.x, pt.y);
+            }
+            glVertex2d(ptCur.x, ptCur.y);
+            glVertex2d(pTmp[0].x, pTmp[0].y);
+            glEnd();
+
+            glBegin(GL_LINE_STRIP);
+            for (const auto& pt : pTmp) {
+                glVertex2d(pt.x, pt.y);
+            }
+
+            glVertex2d(pTmp[0].x, pTmp[0].y);
+            glEnd();
+        }
+    }
+
+    painter.restore();
+}
+
+void MyCtrlView::setPointSize(int size)
+{
+    pointSize = size;
+}
+
+void MyCtrlView::setNFPs(const std::vector<MyCtrlView::Polyline>& nfp)
+{
+    nfps = nfp;
+}
+
+void MyCtrlView::setPolyline(const MyCtrlView::Polyline& p1, const MyCtrlView::Polyline& p2)
+{
+    this->p1 = p1;
+    this->p2 = p2;
+}
+
+void MyCtrlView::getPolyline(MyCtrlView::Polyline& p1, MyCtrlView::Polyline& p2)
+{
+    p1 = this->p1;
+    p2 = this->p2;
+}
+
+void MyCtrlView::setNestPoly(const std::vector<MyCtrlView::Polyline>& np)
+{
+    nestPoly = np;
+}
+void MyCtrlView::setNestPoly2(const std::vector<MyCtrlView::Polyline>& np)
+{
+    nestPoly2 = np;
+}
+void MyCtrlView::mouseDoubleClickEvent(QMouseEvent* evt)
+{
+    if (evt->button() == Qt::LeftButton)
+        ResetView();
+
+    return KWCtrlView::mouseDoubleClickEvent(evt);
+}
+
+void MyCtrlView::mousePressEvent(QMouseEvent* evt)
+{
+    if (evt->button() == Qt::LeftButton) {
+        switch (mode) {
+        case DrawPolyline1: {
+            auto pt = evt->localPos();
+            Scr2View(pt);
+            pTmp.add({ pt.x(), pt.y() });
+        } break;
+        case DrawPolyline2: {
+            auto pt = evt->localPos();
+            Scr2View(pt);
+            pTmp.add({ pt.x(), pt.y() });
+        } break;
+        }
+    }
+
+    return KWCtrlView::mousePressEvent(evt);
+}
+
+void MyCtrlView::mouseReleaseEvent(QMouseEvent* evt)
+{
+    if (evt->button() == Qt::RightButton) {
+
+        if (!pTmp.empty()) {
+            switch (mode) {
+            case DrawPolyline1: {
+                p1 = pTmp;
+            } break;
+            case DrawPolyline2: {
+                p2 = pTmp;
+            } break;
+            }
+
+            pTmp.clear();
+            mode = View;
+        }
+    }
+
+    return KWCtrlView::mouseReleaseEvent(evt);
+}
+
+void MyCtrlView::mouseMoveEvent(QMouseEvent* evt)
+{
+    auto pt = evt->localPos();
+    Scr2View(pt);
+    ptCur.x = pt.x();
+    ptCur.y = pt.y();
+
+    return KWCtrlView::mouseMoveEvent(evt);
+}

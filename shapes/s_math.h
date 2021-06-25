@@ -12,7 +12,7 @@
 
 namespace S_Shape2D {
 
-constexpr double pi = 3.14159265358979323846; // pi
+constexpr double pi = 3.141592653589793238462643383279; // pi
 constexpr double piX2 = pi * 2; //2*PI
 constexpr double pi_2 = pi / 2; //2*PI
 
@@ -100,4 +100,177 @@ public:
     {
     }
 
-    template <typename ValueT, typename = typename std::enable_if<std::is_integral<ValueT>::value>::ty
+    template <typename ValueT, typename = typename std::enable_if<std::is_integral<ValueT>::value>::type>
+    inline Rational(ValueT d, flag_floating = {})
+        : num((T)d)
+        , den(1)
+    {
+    }
+
+    template <typename ValueT, typename = typename std::enable_if<std::is_floating_point<ValueT>::value>::type>
+    inline Rational(ValueT d, flag_integral = {})
+        : num(T((d + std::numeric_limits<ValueT>::epsilon()) * pow(10, std::numeric_limits<ValueT>::digits10)))
+        , den(TD(pow(10, std::numeric_limits<ValueT>::digits10)))
+    {
+        normsign();
+        normalize();
+    }
+
+    inline explicit Rational(T n, T d)
+        : num(n)
+        , den(d)
+    {
+        normsign();
+        normalize();
+    }
+
+    operator double() const
+    {
+        return ((double)num) / (double)den;
+    }
+
+    inline bool operator>(const Rational& o) const
+    {
+        return TD(o.den) * num > TD(den) * o.num;
+    }
+
+    inline bool operator<(const Rational& o) const
+    {
+        return TD(o.den) * num < TD(den) * o.num;
+    }
+
+    inline bool operator==(const Rational& o) const
+    {
+        return TD(o.den) * num == TD(den) * o.num;
+    }
+
+    inline bool operator!=(const Rational& o) const { return !(*this == o); }
+
+    inline bool operator<=(const Rational& o) const
+    {
+        return TD(o.den) * num <= TD(den) * o.num;
+    }
+
+    inline bool operator>=(const Rational& o) const
+    {
+        return TD(o.den) * num >= TD(den) * o.num;
+    }
+
+    inline bool operator<(const T& v) const { return TD(num) < TD(v) * den; }
+    inline bool operator>(const T& v) const { return TD(num) > TD(v) * den; }
+    inline bool operator<=(const T& v) const { return TD(num) <= TD(v) * den; }
+    inline bool operator>=(const T& v) const { return TD(num) >= TD(v) * den; }
+
+    inline Rational& operator*=(const Rational& o)
+    {
+        num *= o.num;
+        den *= o.den;
+        normsign();
+        normalize();
+        return *this;
+    }
+
+    inline Rational& operator/=(const Rational& o)
+    {
+        num *= o.den;
+        den *= o.num;
+        normsign();
+        normalize();
+        return *this;
+    }
+
+    inline Rational& operator+=(const Rational& o)
+    {
+        num = o.den * num + o.num * den;
+        den *= o.den;
+        normalize();
+        return *this;
+    }
+
+    inline Rational& operator-=(const Rational& o)
+    {
+        num = o.den * num - o.num * den;
+        den *= o.den;
+        normalize();
+        return *this;
+    }
+
+    inline Rational& operator*=(const T& v)
+    {
+        const T gcd = GCD()(v, den);
+        num *= v / gcd;
+        den /= gcd;
+        return *this;
+    }
+
+    inline Rational& operator/=(const T& v)
+    {
+        if (num == T {})
+            return *this;
+
+        // Avoid overflow and preserve normalization
+        const T gcd = GCD()(num, v);
+        num /= gcd;
+        den *= v / gcd;
+
+        if (den < T {}) {
+            num = -num;
+            den = -den;
+        }
+
+        den *= v;
+        return *this;
+    }
+
+    inline Rational& operator+=(const T& v)
+    {
+        num += v * den;
+        return *this;
+    }
+    inline Rational& operator-=(const T& v)
+    {
+        num -= v * den;
+        return *this;
+    }
+
+    inline Rational operator*(const Rational& v) const
+    {
+        auto tmp = *this;
+        tmp *= v;
+        return tmp;
+    }
+    inline Rational operator/(const Rational& v) const
+    {
+        auto tmp = *this;
+        tmp /= v;
+        return tmp;
+    }
+    inline Rational operator+(const Rational& v) const
+    {
+        auto tmp = *this;
+        tmp += v;
+        return tmp;
+    }
+    inline Rational operator-(const Rational& v) const
+    {
+        auto tmp = *this;
+        tmp -= v;
+        return tmp;
+    }
+    inline Rational operator-() const
+    {
+        auto tmp = *this;
+        tmp.num = -num;
+        return tmp;
+    }
+
+    inline T numerator() const { return num; }
+    inline T denominator() const { return den; }
+};
+
+using Rational64 = Rational<__int64>;
+}
+
+USE_S_(Rational64);
+
+#endif // MATH_H

@@ -1,6 +1,7 @@
-#ifndef WIDGET_H
+﻿#ifndef WIDGET_H
 #define WIDGET_H
 
+#include <QTimer>
 #include <QWidget>
 
 QT_BEGIN_NAMESPACE
@@ -22,9 +23,13 @@ private slots:
 
     void onExec();
 
-    void onNest();
+    void onTimer();
 
+    void OnSave();
+    void OnLoad(const QString &absoluteFilePath = QString::Null());
 private:
     Ui::Widget* ui;
+
+    QTimer timer;
 };
 #endif // WIDGET_H

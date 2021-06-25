@@ -1,4 +1,4 @@
-#include "widget.h"
+﻿#include "widget.h"
 
 #include <QApplication>
 #include <QDebug>
@@ -7,7 +7,7 @@
 #include "shapes/s_point.hpp"
 #include "shapes/s_polyline.hpp"
 
-#include "nest/nest2d.h"
+
 
 #include "nest/nfpplacer.h"
 
@@ -21,6 +21,8 @@ int main(int argc, char* argv[])
     qDebug() << "";
     QApplication a(argc, argv);
     Widget w;
+
+//    std::unordered_map<int, bool> numMaps;
 
     //    test();
     w.show();

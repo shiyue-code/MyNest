@@ -1,4 +1,4 @@
-#ifndef MYCTRLVIEW_H
+﻿#ifndef MYCTRLVIEW_H
 #define MYCTRLVIEW_H
 
 #include "kwctrlview.h"
@@ -31,6 +31,7 @@ public:
     void getPolyline(Polyline& p1, Polyline& p2);
 
     void setNestPoly(const std::vector<Polyline>& np);
+    void setNestPoly2(const std::vector<MyCtrlView::Polyline> &np);
 
 protected:
     void mouseDoubleClickEvent(QMouseEvent* event) override;
@@ -46,7 +47,7 @@ private:
 
     Polyline p1;
     Polyline p2;
-    std::vector<Polyline> nfps, nestPoly;
+    std::vector<Polyline> nfps, nestPoly,nestPoly2;
 
     Polyline pTmp;
     Point ptCur;

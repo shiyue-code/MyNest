@@ -1,4 +1,4 @@
-#ifndef S_DEF_H
+﻿#ifndef S_DEF_H
 #define S_DEF_H
 
 #include <cfloat>
@@ -17,6 +17,7 @@ enum class ShapeType : short {
     //
     ShapePoint,
     ShapePolyline,
+    ShapeLine,
 };
 
 //

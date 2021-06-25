@@ -1,4 +1,4 @@
-#ifndef NFPPLACER_H
+﻿#ifndef NFPPLACER_H
 #define NFPPLACER_H
 #include "shapes/s_polyline.hpp"
 
@@ -8,7 +8,7 @@ class NfpPlacer {
 
 public:
     using Polyline = S_Polyline2D;
-    using Point = S_Point2D;
+    using Point = Polyline::Point;
 
     using CPointRef = const Point&;
     using CPolylineRef = const Polyline&;
@@ -17,9 +17,9 @@ public:
 
 private:
     enum TOUCH_STATE {
-        POINT_POINT,
-        EDGE_POINT,
-        POINT_EDGE,
+        POINT_POINT, //A的顶点和B的顶点相接触
+        EDGE_POINT,  //A的边和B的点相接处
+        POINT_EDGE,  //A的顶点B的边相接触
     };
 
     struct Edge {
@@ -82,7 +82,6 @@ private:
     Polyline polyB;
 
     Container nfps;
-
     bool isExecute = false;
 };
 

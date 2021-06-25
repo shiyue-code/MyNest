@@ -1,11 +1,12 @@
-#include "widget.h"
+﻿#include "widget.h"
+
+#include <QTime>
+#include <QFile>
+
 #include "shapes/s_point.hpp"
 #include "shapes/s_polyline.hpp"
 #include "ui_widget.h"
 
-#include <QTime>
-
-#include "nest/nest2d.h"
 #include "nest/nfpplacer.h"
 #include "shapes/utiltool.h"
 #include "test.h"
@@ -16,14 +17,19 @@ Widget::Widget(QWidget* parent)
 {
     ui->setupUi(this);
 
-    auto p2 = GetTestP1();
-    p2.rotate(S_Shape2D::pi);
-    ui->openGLWidget->setPolyline(GetTestP1(), p2);
+    auto p1 = GetTestP1();
+//    p1.rotate(1.7);
+    auto p2 = GetTestP2();
+//    p2.rotate(0.4);
+    ui->openGLWidget->setPolyline(p1, p2);
 
     connect(ui->btnDrawP1, SIGNAL(clicked()), this, SLOT(onDrawP1()));
     connect(ui->btnDrawP2, SIGNAL(clicked()), this, SLOT(onDrawP2()));
     connect(ui->btnExec, SIGNAL(clicked()), this, SLOT(onExec()));
-    connect(ui->btnNest, SIGNAL(clicked()), this, SLOT(onNest()));
+    connect(&timer, SIGNAL(timeout()), this, SLOT(onTimer()));
+
+    //OnLoad();
+    //    timer.start(1000);
 }
 
 Widget::~Widget()
@@ -45,30 +51,100 @@ void Widget::onExec()
 {
     MyCtrlView::Polyline p1, p2;
     ui->openGLWidget->getPolyline(p1, p2);
-
+    if(MyCtrlView::Polyline::Clockwise == p1.orientation())
+        p1.reverse();
     S_Shape2D::cleanPolygon(p1);
     S_Shape2D::cleanPolygon(p2);
 
+    if(MyCtrlView::Polyline::Clockwise == p2.orientation())
+        p2.reverse();
     S_Shape2D::NfpPlacer placer(p1, p2);
 
     QTime t;
     t.start();
     placer.exec();
-    qDebug() << "NFP计算耗时" << t.elapsed();
+    qDebug() << u8"NFP calculate takes " << t.elapsed() <<"ms";
 
     ui->openGLWidget->setNFPs(placer.getNFPs());
 }
 
-void Widget::onNest()
+
+
+void Widget::onTimer()
+{
+    static double angle = 0.1;
+    angle += 0.1;
+    auto p1 = GetTestP1();
+    p1.rotate(angle);
+    auto p2 = p1;
+    p2.rotate(S_Shape2D::pi);
+
+    //    qDebug() << "angle" << angle;
+    ui->openGLWidget->setPolyline(p1, p2);
+}
+
+void Widget::OnSave()
 {
     MyCtrlView::Polyline p1, p2;
     ui->openGLWidget->getPolyline(p1, p2);
-
     S_Shape2D::cleanPolygon(p1);
     S_Shape2D::cleanPolygon(p2);
-    S_Shape2D::NestSingle2D::Box box({ 0, 0 }, { 1000, 1000 });
-
-    S_Shape2D::NestSingle2D nester(box, p1);
-    nester.exec();
-    ui->openGLWidget->setNestPoly(nester.result());
+    QFile file(qApp->applicationDirPath()+"/SaveShape.txt");
+    if(file.open(QIODevice::WriteOnly))
+    {
+        QDataStream stream(&file);
+        stream << QString("Shape_P1") << p1.size();
+        for(auto iter =  p1.begin() ;iter!=p1.end(); iter++ )
+        {
+            stream << (*iter).x<<(*iter).y;
+        }
+        stream << QString("Shape_P2") << p2.size();
+        for(auto iter =  p2.begin() ;iter!=p2.end(); iter++ )
+        {
+            stream << (*iter).x<<(*iter).y;
+        }
+        file.flush();
+        file.close();
+    }
+    else
+    {
+        qDebug()<<u8"文件打开的时候出现错误 " << file.errorString();
+    }
 }
+
+void Widget::OnLoad(const QString &absoluteFilePath)
+{
+    MyCtrlView::Polyline p1, p2;
+    QFile file(absoluteFilePath.isNull()?qApp->applicationDirPath()+"/SaveShape.txt":absoluteFilePath);
+    if(file.open(QIODevice::ReadOnly))
+    {
+        QDataStream stream(&file);
+        QString shapeIndex;
+        size_t shapeSize;
+        stream >> shapeIndex >> shapeSize;
+        MyCtrlView::Point pt;
+        for(size_t i =0;i<shapeSize;i++)
+        {
+            stream >> pt.x >> pt.y;
+            p1.insert(pt);
+        }
+        stream >> shapeIndex >> shapeSize;
+        for(size_t i =0;i<shapeSize;i++)
+        {
+            stream >> pt.x >> pt.y;
+            p1.insert(pt);
+        }
+        file.close();
+    }
+    else
+    {
+        file.close();
+        qDebug()<<u8"文件打开的时候出现错误 " << file.errorString();
+    }
+    p2 = p1;
+    p2.rotate(1.7);
+    ui->openGLWidget->setPolyline(p1, p2);
+}
+
+
+

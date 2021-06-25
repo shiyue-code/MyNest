@@ -14,17 +14,17 @@
    <string>Widget</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="1" column="0">
-    <widget class="QPushButton" name="btnDrawP1">
-     <property name="text">
-      <string>绘制P1</string>
-     </property>
-    </widget>
-   </item>
    <item row="1" column="1">
     <widget class="QPushButton" name="btnDrawP2">
      <property name="text">
       <string>绘制P2</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QPushButton" name="btnDrawP1">
+     <property name="text">
+      <string>绘制P1</string>
      </property>
     </widget>
    </item>
@@ -35,15 +35,15 @@
      </property>
     </widget>
    </item>
+   <item row="0" column="0" colspan="5">
+    <widget class="MyCtrlView" name="openGLWidget"/>
+   </item>
    <item row="1" column="3">
     <widget class="QPushButton" name="btnNest">
      <property name="text">
       <string>排版</string>
      </property>
     </widget>
-   </item>
-   <item row="0" column="0" colspan="4">
-    <widget class="MyCtrlView" name="openGLWidget"/>
    </item>
   </layout>
  </widget>

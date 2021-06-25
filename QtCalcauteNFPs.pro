@@ -12,7 +12,6 @@ SOURCES += \
     actions/s_action.cpp \
     main.cpp \
     nest/clipper/clipper.cpp \
-    nest/nest2d.cpp \
     nest/nesttools.cpp \
     nest/nfpplacer.cpp \
     shapes/s_box.cpp \
@@ -31,7 +30,6 @@ HEADERS += \
     nest/clipper/clipper.hpp \
     nest/nfpplacer.h \
     s_common.hpp \
-    nest/nest2d.h \
     nest/nesttools.h \
     shapes/s_box.hpp \
     shapes/s_def.h \
