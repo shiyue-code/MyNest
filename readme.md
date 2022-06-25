@@ -1,4 +1,5 @@
 ## QtCalcauteNFPs
 
 NFP
+[!NFP.JPG]
 
