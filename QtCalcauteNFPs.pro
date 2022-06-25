@@ -16,6 +16,7 @@ SOURCES += \
     nest/nfpplacer.cpp \
     shapes/s_box.cpp \
     shapes/s_document.cpp \
+    shapes/s_line.cpp \
     shapes/s_math.cpp \
     shapes/s_point.cpp \
     shapes/s_polyline.cpp \
@@ -34,6 +35,7 @@ HEADERS += \
     shapes/s_box.hpp \
     shapes/s_def.h \
     shapes/s_document.h \
+    shapes/s_line.hpp \
     shapes/s_math.h \
     shapes/s_point.hpp \
     shapes/s_polyline.hpp \

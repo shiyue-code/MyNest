@@ -321,7 +321,7 @@ private:
 
 typedef Polyline<double> Polyline2D;
 typedef Polyline<float> Polyline2F;
-typedef Polyline<Rational64> Polyline2R;
+typedef Polyline<Rational<long long >> Polyline2R;
 }
 
 USE_S_(Polyline2D);

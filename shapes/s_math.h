@@ -18,9 +18,40 @@ constexpr double pi_2 = pi / 2; //2*PI
 
 class Math {
 public:
-    static double correctAngle(double a)
+    template<class Type>
+    inline static Type correctAngle(Type a)
     {
         return fmod(pi + remainder(a - pi, piX2), piX2);
+    }
+
+    template<class Type>
+    inline static Type multiply(Type a, Type b)
+    {
+        return a*b;
+    }
+
+    template<class Type>
+    inline static Type cos(Type a)
+    {
+        return std::cos(a);
+    }
+
+    template<class Type>
+    inline static Type sin(Type a)
+    {
+        return std::sin(a);
+    }
+
+    template<class Type>
+    inline static Type atan(Type a)
+    {
+        return std::atan(a);
+    }
+
+    template<class Type>
+    inline static Type atan2(Type x, Type y)
+    {
+        return std::atan2(x, y);
     }
 };
 

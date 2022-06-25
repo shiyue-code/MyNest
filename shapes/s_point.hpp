@@ -9,7 +9,7 @@
 
 namespace S_Shape2D {
 
-template <typename T>
+template <typename T, typename UserMath=Math>
 class Point : public Shape {
 public:
     using PointT = Point<T>;
