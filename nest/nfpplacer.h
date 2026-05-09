@@ -60,6 +60,7 @@ public:
     void set(CPolylineRef A, CPolylineRef B);
 
     void exec();
+    void execVectorSegments();
 
     Container getNFPs();
 

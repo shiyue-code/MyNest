@@ -45,6 +45,20 @@
      </property>
     </widget>
    </item>
+   <item row="1" column="4">
+    <widget class="QComboBox" name="comboNfpMethod">
+     <item>
+      <property name="text">
+       <string>移动碰撞法</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>矢量段法</string>
+      </property>
+     </item>
+    </widget>
+   </item>
   </layout>
  </widget>
  <customwidgets>

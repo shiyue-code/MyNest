@@ -6,6 +6,8 @@
 
 #include <QMouseEvent>
 #include <QPainter>
+#include <QString>
+#include <cmath>
 #include <functional>
 
 using namespace S_Shape2D;
@@ -113,14 +115,19 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
         glEnd();
     }
 
-    if (!p2.empty()) {
+    Polyline p2Draw = animationEnabled ? animationBaseP2 : p2;
+    if (animationEnabled && !p2Draw.empty()) {
+        p2Draw.translate(animationRefPoint - p2Draw[0]);
+    }
+
+    if (!p2Draw.empty()) {
 
         if (mode == DrawPolyline2)
             glColor3f(1, 1, 0);
         else
             glColor3f(0, 1, 0);
 
-        Box2D box = calcBoundingBox(p2);
+        Box2D box = calcBoundingBox(p2Draw);
         Point pc = box.center();
         QPointF p0(pc.x, pc.y);
 
@@ -129,17 +136,31 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
 
         glPointSize(5);
         glBegin(GL_POINTS);
-        glVertex2d(p2[0].x, p2[0].y);
+        glVertex2d(p2Draw[0].x, p2Draw[0].y);
         glEnd();
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glBegin(GL_POLYGON);
-        for (const auto& pt : p2) {
+        for (const auto& pt : p2Draw) {
             glVertex2d(pt.x, pt.y);
         }
         glEnd();
+
+        glColor3f(1, 0, 0);
+        glPointSize(9);
+        glBegin(GL_POINTS);
+        glVertex2d(p2Draw[0].x, p2Draw[0].y);
+        glEnd();
+
+        QPointF refLabel(p2Draw[0].x, p2Draw[0].y);
+        View2Scr(refLabel);
+        refLabel += QPointF(8, -8);
+        painter.setPen(Qt::red);
+        painter.drawText(refLabel, QString("Ref (%1, %2)")
+                         .arg(p2Draw[0].x, 0, 'f', 1)
+                         .arg(p2Draw[0].y, 0, 'f', 1));
+        painter.setPen(Qt::white);
     }
 
-    double x, y;
     if (!nfps.empty()) {
         glColor3f(1, 1, 1);
         for (const auto& nfp : nfps) {
@@ -152,8 +173,9 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
             glBegin(GL_LINE_STRIP);
             for (const auto& pt : nfp) {
                 glVertex2d(pt.x, pt.y);
-                x = pt.x;
-                y = pt.y;
+            }
+            if (!nfp.empty()) {
+                glVertex2d(nfp[0].x, nfp[0].y);
             }
             glEnd();
         }
@@ -256,12 +278,90 @@ void MyCtrlView::setPointSize(int size)
 void MyCtrlView::setNFPs(const std::vector<MyCtrlView::Polyline>& nfp)
 {
     nfps = nfp;
+    update();
 }
 
 void MyCtrlView::setPolyline(const MyCtrlView::Polyline& p1, const MyCtrlView::Polyline& p2)
 {
     this->p1 = p1;
     this->p2 = p2;
+    stopNfpAnimation();
+    update();
+}
+
+void MyCtrlView::startNfpAnimation()
+{
+    animationPath.clear();
+    for (const auto& nfp : nfps) {
+        if (nfp.size() >= 2) {
+            for (const auto& pt : nfp) {
+                animationPath.push_back(pt);
+            }
+            break;
+        }
+    }
+
+    if (animationPath.size() < 2 || p2.empty()) {
+        stopNfpAnimation();
+        return;
+    }
+
+    animationBaseP2 = p2;
+    animationRefPoint = animationPath[0];
+    animationEdgeIndex = 0;
+    animationEdgeOffset = 0;
+    animationEnabled = true;
+    update();
+}
+
+void MyCtrlView::stopNfpAnimation()
+{
+    animationEnabled = false;
+    animationPath.clear();
+    animationEdgeIndex = 0;
+    animationEdgeOffset = 0;
+}
+
+void MyCtrlView::advanceNfpAnimation()
+{
+    if (!animationEnabled || animationPath.size() < 2)
+        return;
+
+    double remain = animationStep;
+    while (remain > 0 && animationPath.size() >= 2) {
+        const Point& edgeStart = animationPath[animationEdgeIndex];
+        const Point& edgeEnd = animationPath[(animationEdgeIndex + 1) % animationPath.size()];
+        Point edge = edgeEnd - edgeStart;
+        double edgeLength = edge.norm();
+
+        if (isEqual(edgeLength, 0.0)) {
+            animationEdgeIndex = (animationEdgeIndex + 1) % animationPath.size();
+            animationEdgeOffset = 0;
+            continue;
+        }
+
+        double leftOnEdge = edgeLength - animationEdgeOffset;
+        if (remain < leftOnEdge) {
+            animationEdgeOffset += remain;
+            remain = 0;
+        } else {
+            remain -= leftOnEdge;
+            animationEdgeIndex = (animationEdgeIndex + 1) % animationPath.size();
+            animationEdgeOffset = 0;
+        }
+
+        const Point& curStart = animationPath[animationEdgeIndex];
+        const Point& curEnd = animationPath[(animationEdgeIndex + 1) % animationPath.size()];
+        Point curEdge = curEnd - curStart;
+        double curLength = curEdge.norm();
+        if (!isEqual(curLength, 0.0)) {
+            animationRefPoint = curStart + curEdge * (animationEdgeOffset / curLength);
+        } else {
+            animationRefPoint = curStart;
+        }
+    }
+
+    update();
 }
 
 void MyCtrlView::getPolyline(MyCtrlView::Polyline& p1, MyCtrlView::Polyline& p2)

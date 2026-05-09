@@ -11,6 +11,22 @@
 #include "shapes/utiltool.h"
 #include "test.h"
 
+namespace {
+
+void debugPrintPolyline(const QString& name, const MyCtrlView::Polyline& poly)
+{
+    qDebug().noquote() << name << "vertex count:" << poly.size();
+    for (size_t i = 0; i < poly.size(); ++i) {
+        qDebug().noquote() << QString("%1[%2] = (%3, %4)")
+                              .arg(name)
+                              .arg(i)
+                              .arg(poly[i].x, 0, 'f', 6)
+                              .arg(poly[i].y, 0, 'f', 6);
+    }
+}
+
+}
+
 Widget::Widget(QWidget* parent)
     : QWidget(parent)
     , ui(new Ui::Widget)
@@ -39,11 +55,15 @@ Widget::~Widget()
 
 void Widget::onDrawP1()
 {
+    timer.stop();
+    ui->openGLWidget->stopNfpAnimation();
     ui->openGLWidget->setMode(DrawPolyline1);
 }
 
 void Widget::onDrawP2()
 {
+    timer.stop();
+    ui->openGLWidget->stopNfpAnimation();
     ui->openGLWidget->setMode(DrawPolyline2);
 }
 
@@ -60,27 +80,29 @@ void Widget::onExec()
         p2.reverse();
     S_Shape2D::NfpPlacer placer(p1, p2);
 
+    debugPrintPolyline("P1", p1);
+    debugPrintPolyline("P2", p2);
+
     QTime t;
     t.start();
-    placer.exec();
-    qDebug() << u8"NFP calculate takes " << t.elapsed() <<"ms";
+    if (ui->comboNfpMethod->currentIndex() == 0) {
+        placer.exec();
+    } else {
+        placer.execVectorSegments();
+    }
+    qDebug() << ui->comboNfpMethod->currentText() << u8"NFP calculate takes " << t.elapsed() <<"ms";
 
+    ui->openGLWidget->setPolyline(p1, p2);
     ui->openGLWidget->setNFPs(placer.getNFPs());
+    ui->openGLWidget->startNfpAnimation();
+    timer.start(30);
 }
 
 
 
 void Widget::onTimer()
 {
-    static double angle = 0.1;
-    angle += 0.1;
-    auto p1 = GetTestP1();
-    p1.rotate(angle);
-    auto p2 = p1;
-    p2.rotate(S_Shape2D::pi);
-
-    //    qDebug() << "angle" << angle;
-    ui->openGLWidget->setPolyline(p1, p2);
+    ui->openGLWidget->advanceNfpAnimation();
 }
 
 void Widget::OnSave()

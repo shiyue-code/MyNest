@@ -27,6 +27,9 @@ public:
     void setPointSize(int size);
     void setNFPs(const std::vector<Polyline>& nfp);
     void setPolyline(const Polyline& p1, const Polyline& p2);
+    void startNfpAnimation();
+    void stopNfpAnimation();
+    void advanceNfpAnimation();
 
     void getPolyline(Polyline& p1, Polyline& p2);
 
@@ -48,6 +51,13 @@ private:
     Polyline p1;
     Polyline p2;
     std::vector<Polyline> nfps, nestPoly,nestPoly2;
+    Polyline animationBaseP2;
+    std::vector<Point> animationPath;
+    Point animationRefPoint;
+    bool animationEnabled = false;
+    size_t animationEdgeIndex = 0;
+    double animationEdgeOffset = 0;
+    double animationStep = 2.0;
 
     Polyline pTmp;
     Point ptCur;
