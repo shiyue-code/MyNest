@@ -57,6 +57,11 @@
        <string>矢量段法</string>
       </property>
      </item>
+     <item>
+      <property name="text">
+       <string>Minkowski法</string>
+      </property>
+     </item>
     </widget>
    </item>
   </layout>

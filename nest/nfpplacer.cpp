@@ -19,7 +19,7 @@ using ClipperPath = ClipperLib::Path;
 using ClipperPaths = ClipperLib::Paths;
 
 constexpr double splitEps = 1e-8;
-constexpr double pointKeyScale = 1000000.0;
+constexpr double pointKeyScale = 10000.0;
 
 struct Segment {
     NfpPoint a;
@@ -126,19 +126,33 @@ NfpPoint leftRightTouchReferencePoint(const NfpPolyline& fixed, const NfpPolylin
     return fixed[minIndexA] - (moving[maxIndexB] - moving[0]);
 }
 
-double signedLineDistance(const NfpPoint& lineStart, const NfpPoint& lineDir, const NfpPoint& pt)
+double positiveTurnAngle(const NfpPoint& from, const NfpPoint& to)
 {
-    return lineDir.cross(pt - lineStart);
+    double angle = std::atan2(from.cross(to), from.dot(to));
+    if (angle < 0.0)
+        angle += 2.0 * pi;
+    return angle;
 }
 
-bool polygonOnRightSideOfLine(const NfpPolyline& polygon, const NfpPoint& lineStart, const NfpPoint& lineDir)
+bool vectorInCcwAngle(const NfpPoint& from, const NfpPoint& to, const NfpPoint& value)
 {
-    const double tolerance = (std::max)(1e-6, lineDir.norm() * 1e-8);
-    for (const auto& pt : polygon) {
-        if (signedLineDistance(lineStart, lineDir, pt) > tolerance)
-            return false;
-    }
-    return true;
+    double span = positiveTurnAngle(from, to);
+    double offset = positiveTurnAngle(from, value);
+    return offset <= span + 1e-7;
+}
+
+bool angleEdgeCanTouch(const NfpPoint& prev, const NfpPoint& vertex, const NfpPoint& next, const NfpPoint& edge)
+{
+    NfpPoint inEdge = vertex - prev;
+    NfpPoint outEdge = next - vertex;
+    if (isEqual(inEdge.norm(), 0.0) || isEqual(outEdge.norm(), 0.0) || isEqual(edge.norm(), 0.0))
+        return false;
+
+    double vertexAngle = positiveTurnAngle(inEdge, outEdge);
+    if (vertexAngle > pi + 1e-7)
+        return false;
+
+    return vectorInCcwAngle(-inEdge, -outEdge, edge);
 }
 
 double pointSegmentDistance(const NfpPoint& pt, const NfpPoint& a, const NfpPoint& b)
@@ -301,7 +315,10 @@ std::vector<Segment> generateCandidateSegments(const NfpPolyline& fixed, const N
         const NfpPoint& a1 = fixed[(i + 1) % fixed.size()];
         NfpPoint edge = a1 - a0;
         for (size_t j = 0; j < moving.size(); ++j) {
-            if (!polygonOnRightSideOfLine(moving, moving[j], edge))
+            const NfpPoint& prev = moving[(j + moving.size() - 1) % moving.size()];
+            const NfpPoint& vertex = moving[j];
+            const NfpPoint& next = moving[(j + 1) % moving.size()];
+            if (!angleEdgeCanTouch(prev, vertex, next, edge))
                 continue;
 
             NfpPoint rel = moving[j] - reference;
@@ -315,7 +332,9 @@ std::vector<Segment> generateCandidateSegments(const NfpPolyline& fixed, const N
             const NfpPoint& b0 = moving[j];
             const NfpPoint& b1 = moving[(j + 1) % moving.size()];
             NfpPoint edge = b1 - b0;
-            if (!polygonOnRightSideOfLine(fixed, vertex, edge))
+            const NfpPoint& prev = fixed[(i + fixed.size() - 1) % fixed.size()];
+            const NfpPoint& next = fixed[(i + 1) % fixed.size()];
+            if (!angleEdgeCanTouch(prev, vertex, next, edge))
                 continue;
 
             segments.push_back({ vertex - (b0 - reference), vertex - (b1 - reference) });
@@ -369,107 +388,134 @@ double turnAngle(const NfpPoint& from, const NfpPoint& to)
     return std::atan2(from.cross(to), from.dot(to));
 }
 
+bool pointKeyLessByPosition(const PointKey& lhs, const PointKey& rhs)
+{
+    if (lhs.second != rhs.second)
+        return lhs.second < rhs.second;
+    return lhs.first < rhs.first;
+}
+
+size_t chooseMinRotationEdge(const std::vector<Segment>& segments,
+                             const std::map<PointKey, std::vector<size_t>>& outgoing,
+                             const PointKey& pointKey,
+                             const NfpPoint& referenceDir,
+                             const std::vector<bool>& removed,
+                             const std::set<size_t>& localUsed)
+{
+    auto it = outgoing.find(pointKey);
+    if (it == outgoing.end())
+        return static_cast<size_t>(-1);
+
+    size_t nextIndex = static_cast<size_t>(-1);
+    double bestAngle = std::numeric_limits<double>::max();
+    double bestLength = -1.0;
+    for (size_t candidate : it->second) {
+        if (removed[candidate] || localUsed.find(candidate) != localUsed.end())
+            continue;
+
+        NfpPoint candidateDir = segments[candidate].b - segments[candidate].a;
+        if (isEqual(candidateDir.norm(), 0.0))
+            continue;
+
+        double angle = turnAngle(referenceDir, candidateDir);
+        double length = candidateDir.norm();
+        if (angle < bestAngle - 1e-10 || (isEqual(angle, bestAngle) && length > bestLength)) {
+            bestAngle = angle;
+            bestLength = length;
+            nextIndex = candidate;
+        }
+    }
+
+    return nextIndex;
+}
+
+bool traceRingFromFirstEdge(const std::vector<Segment>& segments,
+                            const std::map<PointKey, std::vector<size_t>>& outgoing,
+                            size_t firstIndex,
+                            const std::vector<bool>& removed,
+                            NfpPolyline& ring,
+                            std::vector<size_t>& path)
+{
+    ring.clear();
+    path.clear();
+
+    PointKey startKey = keyOf(segments[firstIndex].a);
+    size_t currentIndex = firstIndex;
+    NfpPoint referenceDir = segments[firstIndex].b - segments[firstIndex].a;
+    std::set<size_t> localUsed;
+
+    for (size_t guard = 0; guard < segments.size() + 1; ++guard) {
+        const Segment& current = segments[currentIndex];
+        path.push_back(currentIndex);
+        localUsed.insert(currentIndex);
+
+        if (ring.empty() || ring[ring.size() - 1] != current.a)
+            ring.add(current.a);
+
+        PointKey currentKey = keyOf(current.b);
+        if (currentKey == startKey)
+            return ring.size() >= 3;
+
+        referenceDir = current.b - current.a;
+        currentIndex = chooseMinRotationEdge(segments, outgoing, currentKey, referenceDir, removed, localUsed);
+        if (currentIndex == static_cast<size_t>(-1))
+            return false;
+    }
+
+    return false;
+}
+
 std::vector<NfpPolyline> extractRings(const std::vector<Segment>& segments)
 {
     std::map<PointKey, std::vector<size_t>> outgoing;
+    std::set<PointKey> outgoingPoints;
     for (size_t i = 0; i < segments.size(); ++i) {
-        outgoing[keyOf(segments[i].a)].push_back(i);
+        PointKey startKey = keyOf(segments[i].a);
+        outgoing[startKey].push_back(i);
+        outgoingPoints.insert(startKey);
     }
 
-    std::vector<bool> used(segments.size(), false);
+    if (segments.empty() || outgoingPoints.empty())
+        return {};
+
+    std::vector<bool> removed(segments.size(), false);
     std::vector<NfpPolyline> rings;
 
+    PointKey outerStart = *std::min_element(outgoingPoints.begin(), outgoingPoints.end(), pointKeyLessByPosition);
+    std::set<size_t> noLocalUsed;
+    size_t firstOuter = chooseMinRotationEdge(segments, outgoing, outerStart, NfpPoint(1.0, 0.0), removed, noLocalUsed);
+    if (firstOuter != static_cast<size_t>(-1)) {
+        NfpPolyline outerRing;
+        std::vector<size_t> outerPath;
+        if (traceRingFromFirstEdge(segments, outgoing, firstOuter, removed, outerRing, outerPath)) {
+            if (NfpPolyline::Clockwise == outerRing.orientation())
+                outerRing.reverse();
+            rings.push_back(outerRing);
+            for (size_t index : outerPath)
+                removed[index] = true;
+        }
+    }
+
     for (size_t startIndex = 0; startIndex < segments.size(); ++startIndex) {
-        if (used[startIndex])
+        if (removed[startIndex])
             continue;
 
-        NfpPolyline ring;
-        size_t currentIndex = startIndex;
-        PointKey startKey = keyOf(segments[startIndex].a);
-        PointKey currentKey = startKey;
-        NfpPoint prevDir = segments[startIndex].b - segments[startIndex].a;
-        std::vector<size_t> path;
-        std::set<size_t> localUsed;
-        bool closed = false;
+        NfpPolyline innerRing;
+        std::vector<size_t> innerPath;
+        if (!traceRingFromFirstEdge(segments, outgoing, startIndex, removed, innerRing, innerPath))
+            continue;
 
-        for (size_t guard = 0; guard < segments.size() + 1; ++guard) {
-            const Segment& current = segments[currentIndex];
-            path.push_back(currentIndex);
-            localUsed.insert(currentIndex);
+        if (NfpPolyline::Clockwise != innerRing.orientation())
+            continue;
 
-            if (ring.empty() || ring[ring.size() - 1] != current.a)
-                ring.add(current.a);
-
-            currentKey = keyOf(current.b);
-            if (currentKey == startKey) {
-                if (ring.size() >= 3) {
-                    rings.push_back(ring);
-                    for (size_t index : path)
-                        used[index] = true;
-                    closed = true;
-                }
-                break;
-            }
-
-            auto it = outgoing.find(currentKey);
-            if (it == outgoing.end())
-                break;
-
-            size_t nextIndex = static_cast<size_t>(-1);
-            double bestAngle = std::numeric_limits<double>::max();
-            for (size_t candidate : it->second) {
-                if (used[candidate] || localUsed.find(candidate) != localUsed.end())
-                    continue;
-
-                NfpPoint candidateDir = segments[candidate].b - segments[candidate].a;
-                double angle = turnAngle(prevDir, candidateDir);
-                if (angle < bestAngle) {
-                    bestAngle = angle;
-                    nextIndex = candidate;
-                }
-            }
-
-            if (nextIndex == static_cast<size_t>(-1))
-                break;
-
-            prevDir = segments[nextIndex].b - segments[nextIndex].a;
-            currentIndex = nextIndex;
-        }
-
-        if (!closed && path.size() == 1)
-            used[startIndex] = true;
+        rings.push_back(innerRing);
+        for (size_t index : innerPath)
+            removed[index] = true;
     }
 
     std::sort(rings.begin(), rings.end(), [](NfpPolyline lhs, NfpPolyline rhs) {
         return std::fabs(lhs.area()) > std::fabs(rhs.area());
     });
-    return rings;
-}
-
-std::vector<NfpPolyline> minkowskiBoundaryFallback(const NfpPolyline& fixed, const NfpPolyline& moving)
-{
-    std::vector<NfpPolyline> rings;
-    if (fixed.size() < 3 || moving.size() < 3)
-        return rings;
-
-    ClipperPaths solution;
-    ClipperLib::MinkowskiDiff(relativePath(moving, moving[0]), polygon2Path(fixed), solution);
-    ClipperLib::CleanPolygons(solution, 1.0);
-
-    std::sort(solution.begin(), solution.end(), [](const ClipperPath& lhs, const ClipperPath& rhs) {
-        return std::fabs(ClipperLib::Area(lhs)) > std::fabs(ClipperLib::Area(rhs));
-    });
-
-    for (const auto& path : solution) {
-        if (path.size() < 3 || isEqual(std::fabs(ClipperLib::Area(path)), 0.0))
-            continue;
-
-        NfpPolyline poly = path2Polygon<double>(path);
-        cleanPolygon(poly);
-        if (poly.size() >= 3)
-            rings.push_back(poly);
-    }
-
     return rings;
 }
 
@@ -756,15 +802,76 @@ void NfpPlacer::execVectorSegments()
     std::vector<Segment> candidates = generateCandidateSegments(fixed, moving);
     std::vector<Segment> split = splitSegments(candidates);
     std::vector<Segment> boundary = filterBoundarySegments(split, fixed, moving);
+    qDebug() << "Vector segment NFP"
+             << "fixedOrientation" << fixed.orientation()
+             << "movingOrientation" << moving.orientation()
+             << "candidates" << candidates.size()
+             << "split" << split.size()
+             << "boundary" << boundary.size();
     nfps = extractRings(boundary);
+    if (nfps.empty() && boundary.size() != split.size()) {
+        qDebug() << "Boundary segments did not close; retrying with split vector segment set.";
+        nfps = extractRings(split);
+    }
+    qDebug() << "Vector segment NFP rings" << nfps.size();
     if (nfps.empty()) {
-        qDebug() << "Vector segment extraction produced no closed NFP ring; using direct Minkowski boundary fallback.";
-        nfps = minkowskiBoundaryFallback(fixed, moving);
+        qDebug() << "Vector segment extraction produced no closed NFP ring.";
     }
     nfps = sanitizeNfpRings(nfps, fixed, moving);
     nfps = simplifyNfpRings(nfps);
     nfps = moveTouchingPointToRingStart(nfps, fixed, moving);
 
+    isExecute = true;
+}
+
+void NfpPlacer::execMinkowski()
+{
+    if (isExecute)
+        return;
+    nfps.clear();
+
+    if (polyA.size() < 3 || polyB.size() < 3) {
+        isExecute = true;
+        return;
+    }
+
+    Polyline fixed = polyA;
+    Polyline moving = polyB;
+    cleanPolygon(fixed);
+    cleanPolygon(moving);
+
+    if (fixed.size() < 3 || moving.size() < 3) {
+        isExecute = true;
+        return;
+    }
+
+    if (Polyline::Clockwise == fixed.orientation())
+        fixed.reverse();
+    if (Polyline::Clockwise == moving.orientation())
+        moving.reverse();
+
+    ClipperPaths solution;
+    ClipperLib::MinkowskiDiff(relativePath(moving, moving[0]), polygon2Path(fixed), solution);
+    ClipperLib::CleanPolygons(solution, 1.0);
+
+    std::sort(solution.begin(), solution.end(), [](const ClipperPath& lhs, const ClipperPath& rhs) {
+        return std::fabs(ClipperLib::Area(lhs)) > std::fabs(ClipperLib::Area(rhs));
+    });
+
+    for (const auto& path : solution) {
+        if (path.size() < 3 || isEqual(std::fabs(ClipperLib::Area(path)), 0.0))
+            continue;
+
+        Polyline ring = path2Polygon<double>(path);
+        cleanPolygon(ring);
+        if (ring.size() >= 3)
+            nfps.push_back(ring);
+    }
+
+    nfps = simplifyNfpRings(nfps);
+    nfps = moveTouchingPointToRingStart(nfps, fixed, moving);
+
+    qDebug() << "Minkowski NFP rings" << nfps.size();
     isExecute = true;
 }
 

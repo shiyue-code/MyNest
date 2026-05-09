@@ -61,6 +61,7 @@ public:
 
     void exec();
     void execVectorSegments();
+    void execMinkowski();
 
     Container getNFPs();
 

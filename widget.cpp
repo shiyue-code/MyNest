@@ -87,8 +87,10 @@ void Widget::onExec()
     t.start();
     if (ui->comboNfpMethod->currentIndex() == 0) {
         placer.exec();
-    } else {
+    } else if (ui->comboNfpMethod->currentIndex() == 1) {
         placer.execVectorSegments();
+    } else {
+        placer.execMinkowski();
     }
     qDebug() << ui->comboNfpMethod->currentText() << u8"NFP calculate takes " << t.elapsed() <<"ms";
 
