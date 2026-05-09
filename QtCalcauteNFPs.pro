@@ -2,7 +2,7 @@ QT       += core gui
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-CONFIG += c++11
+CONFIG += c++17
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -14,6 +14,9 @@ SOURCES += \
     nest/clipper/clipper.cpp \
     nest/nesttools.cpp \
     nest/nfpplacer.cpp \
+    nest/nfpplacer_minkowski.cpp \
+    nest/nfpplacer_moving.cpp \
+    nest/nfpplacer_vector.cpp \
     shapes/s_box.cpp \
     shapes/s_document.cpp \
     shapes/s_line.cpp \
@@ -29,6 +32,7 @@ SOURCES += \
 HEADERS += \
     actions/s_action.h \
     nest/clipper/clipper.hpp \
+    nest/nfpplacer_common.h \
     nest/nfpplacer.h \
     s_common.hpp \
     nest/nesttools.h \
