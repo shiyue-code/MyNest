@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <optional>
 #include <set>
 
 namespace S_Shape2D {
@@ -31,12 +32,27 @@ struct Segment {
     NfpPoint b;
 };
 
+struct SegmentBox {
+    double minX = 0.0;
+    double maxX = 0.0;
+    double minY = 0.0;
+    double maxY = 0.0;
+};
+
+struct CollisionContext {
+    ClipperPath fixedPath;
+    ClipperPath movingRelativePath;
+};
+
 using PointKey = std::pair<long long, long long>;
 
 inline std::vector<NfpPolyline> extractRings(const std::vector<Segment>& segments);
 inline std::vector<NfpPolyline> sanitizeNfpRings(const std::vector<NfpPolyline>& rings, const NfpPolyline& fixed, const NfpPolyline& moving);
 inline std::vector<NfpPolyline> simplifyNfpRings(const std::vector<NfpPolyline>& rings);
-inline std::vector<NfpPolyline> moveTouchingPointToRingStart(const std::vector<NfpPolyline>& rings, const NfpPolyline& fixed, const NfpPolyline& moving);
+inline std::vector<NfpPolyline> moveTouchingPointToRingStart(const std::vector<NfpPolyline>& rings,
+                                                             const NfpPolyline& fixed,
+                                                             const NfpPolyline& moving,
+                                                             bool validateInnerStarts = true);
 inline NfpPoint leftRightTouchReferencePoint(const NfpPolyline& fixed, const NfpPolyline& moving);
 
 template <ExtremeVertex Mode>
@@ -85,13 +101,17 @@ inline bool normalizeNfpInputs(const NfpPolyline& sourceFixed, const NfpPolyline
     return true;
 }
 
-inline void finishNfpRings(std::vector<NfpPolyline>& rings, const NfpPolyline& fixed, const NfpPolyline& moving, bool sanitize)
+inline void finishNfpRings(std::vector<NfpPolyline>& rings,
+                           const NfpPolyline& fixed,
+                           const NfpPolyline& moving,
+                           bool sanitize,
+                           bool validateInnerStarts = true)
 {
     if (sanitize)
         rings = sanitizeNfpRings(rings, fixed, moving);
 
     rings = simplifyNfpRings(rings);
-    rings = moveTouchingPointToRingStart(rings, fixed, moving);
+    rings = moveTouchingPointToRingStart(rings, fixed, moving, validateInnerStarts);
 }
 
 inline ClipperPath relativePath(const NfpPolyline& polygon, const NfpPoint& reference)
@@ -107,6 +127,23 @@ inline ClipperPath relativePath(const NfpPolyline& polygon, const NfpPoint& refe
     return path;
 }
 
+inline CollisionContext makeCollisionContext(const NfpPolyline& fixed, const NfpPolyline& moving, const NfpPoint& movingReference)
+{
+    return { polygon2Path(fixed), relativePath(moving, movingReference) };
+}
+
+inline ClipperPath translatedPath(const ClipperPath& relative, const NfpPoint& referencePosition)
+{
+    const auto dx = static_cast<ClipperLib::cInt>(std::llround(referencePosition.x * clipperScaler));
+    const auto dy = static_cast<ClipperLib::cInt>(std::llround(referencePosition.y * clipperScaler));
+
+    ClipperPath path;
+    path.reserve(relative.size());
+    for (const auto& pt : relative)
+        path.push_back({ pt.X + dx, pt.Y + dy });
+    return path;
+}
+
 inline PointKey keyOf(const NfpPoint& pt)
 {
     return {
@@ -118,6 +155,24 @@ inline PointKey keyOf(const NfpPoint& pt)
 inline NfpPoint pointAt(const Segment& segment, double t)
 {
     return segment.a + (segment.b - segment.a) * t;
+}
+
+inline SegmentBox segmentBox(const Segment& segment)
+{
+    return {
+        (std::min)(segment.a.x, segment.b.x),
+        (std::max)(segment.a.x, segment.b.x),
+        (std::min)(segment.a.y, segment.b.y),
+        (std::max)(segment.a.y, segment.b.y)
+    };
+}
+
+inline bool boxesOverlap(const SegmentBox& lhs, const SegmentBox& rhs, double eps = splitEps)
+{
+    return lhs.minX <= rhs.maxX + eps
+        && rhs.minX <= lhs.maxX + eps
+        && lhs.minY <= rhs.maxY + eps
+        && rhs.minY <= lhs.maxY + eps;
 }
 
 inline bool inUnit(double value)
@@ -252,10 +307,14 @@ inline double polygonDistance(const NfpPolyline& fixed, const NfpPolyline& movin
 inline std::vector<Segment> splitSegments(const std::vector<Segment>& segments)
 {
     std::vector<std::vector<double>> params(segments.size());
+    std::vector<SegmentBox> boxes;
+    boxes.reserve(segments.size());
     for (auto& p : params) {
         p.push_back(0.0);
         p.push_back(1.0);
     }
+    for (const auto& segment : segments)
+        boxes.push_back(segmentBox(segment));
 
     for (size_t i = 0; i < segments.size(); ++i) {
         NfpPoint r = segments[i].b - segments[i].a;
@@ -263,6 +322,9 @@ inline std::vector<Segment> splitSegments(const std::vector<Segment>& segments)
             continue;
 
         for (size_t j = i + 1; j < segments.size(); ++j) {
+            if (!boxesOverlap(boxes[i], boxes[j]))
+                continue;
+
             NfpPoint s = segments[j].b - segments[j].a;
             if (isEqual(s.norm(), 0.0))
                 continue;
@@ -309,17 +371,25 @@ inline std::vector<Segment> splitSegments(const std::vector<Segment>& segments)
     return result;
 }
 
-inline double intersectionArea(const NfpPolyline& fixed, const NfpPolyline& moving, const NfpPoint& movingReference, const NfpPoint& referencePosition)
+inline double intersectionArea(const CollisionContext& context, const NfpPoint& referencePosition)
 {
-    NfpPolyline placed = moving;
-    placed.translate(referencePosition - movingReference);
+    ClipperLib::Clipper clipper;
+    clipper.AddPath(context.fixedPath, ClipperLib::ptSubject, true);
+    clipper.AddPath(translatedPath(context.movingRelativePath, referencePosition), ClipperLib::ptClip, true);
 
-    ClipperLib::Paths overlap = Intersection(polygon2Path(fixed), polygon2Path(placed));
+    ClipperLib::Paths overlap;
+    clipper.Execute(ClipperLib::ctIntersection, overlap, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
+
     double area = 0.0;
     for (const auto& path : overlap) {
         area += std::fabs(ClipperLib::Area(path)) / (clipperScaler * static_cast<double>(clipperScaler));
     }
     return area;
+}
+
+inline double intersectionArea(const NfpPolyline& fixed, const NfpPolyline& moving, const NfpPoint& movingReference, const NfpPoint& referencePosition)
+{
+    return intersectionArea(makeCollisionContext(fixed, moving, movingReference), referencePosition);
 }
 
 inline std::vector<Segment> ringToSegments(const NfpPolyline& ring)
@@ -345,11 +415,12 @@ inline std::vector<NfpPolyline> sanitizeNfpRings(const std::vector<NfpPolyline>&
 
     const NfpPoint reference = moving[0];
     const double areaTolerance = 1e-5;
+    const CollisionContext collision = makeCollisionContext(fixed, moving, reference);
 
     for (const auto& ring : rings) {
         for (const auto& edge : ringToSegments(ring)) {
             NfpPoint mid = edge.a + (edge.b - edge.a) * 0.5;
-            if (intersectionArea(fixed, moving, reference, mid) <= areaTolerance)
+            if (intersectionArea(collision, mid) <= areaTolerance)
                 validEdges.push_back(edge);
         }
     }
@@ -367,6 +438,7 @@ inline std::vector<Segment> generateCandidateSegments(const NfpPolyline& fixed, 
     if (fixed.empty() || moving.empty())
         return segments;
 
+    segments.reserve(fixed.size() * moving.size() * 2);
     const NfpPoint reference = moving[0];
     for (size_t i = 0; i < fixed.size(); ++i) {
         const NfpPoint& a0 = fixed[i];
@@ -415,8 +487,10 @@ inline std::vector<Segment> filterBoundarySegments(const std::vector<Segment>& s
 
     const NfpPoint reference = moving[0];
     const double areaEps = probe * probe;
+    const CollisionContext collision = makeCollisionContext(fixed, moving, reference);
 
     std::set<std::pair<PointKey, PointKey>> seen;
+    result.reserve(segments.size());
     for (const auto& segment : segments) {
         NfpPoint dir = segment.b - segment.a;
         double length = dir.norm();
@@ -426,8 +500,8 @@ inline std::vector<Segment> filterBoundarySegments(const std::vector<Segment>& s
         NfpPoint unit = dir / length;
         NfpPoint left(-unit.y, unit.x);
         NfpPoint mid = segment.a + dir * 0.5;
-        bool leftOverlaps = intersectionArea(fixed, moving, reference, mid + left * probe) > areaEps;
-        bool rightOverlaps = intersectionArea(fixed, moving, reference, mid - left * probe) > areaEps;
+        bool leftOverlaps = intersectionArea(collision, mid + left * probe) > areaEps;
+        bool rightOverlaps = intersectionArea(collision, mid - left * probe) > areaEps;
 
         if (leftOverlaps == rightOverlaps)
             continue;
@@ -616,7 +690,10 @@ inline std::vector<NfpPolyline> simplifyNfpRings(const std::vector<NfpPolyline>&
     return result.empty() ? rings : result;
 }
 
-inline std::vector<NfpPolyline> moveTouchingPointToRingStart(const std::vector<NfpPolyline>& rings, const NfpPolyline& fixed, const NfpPolyline& moving)
+inline std::vector<NfpPolyline> moveTouchingPointToRingStart(const std::vector<NfpPolyline>& rings,
+                                                             const NfpPolyline& fixed,
+                                                             const NfpPolyline& moving,
+                                                             bool validateInnerStarts)
 {
     if (fixed.size() < 3 || moving.size() < 3)
         return rings;
@@ -625,6 +702,7 @@ inline std::vector<NfpPolyline> moveTouchingPointToRingStart(const std::vector<N
     const NfpPoint reference = moving[0];
     const NfpPoint guaranteedTouch = leftRightTouchReferencePoint(fixed, moving);
     const double overlapTolerance = 1e-5;
+    std::optional<CollisionContext> collision;
 
     bool firstRing = true;
     for (auto& ring : result) {
@@ -656,10 +734,16 @@ inline std::vector<NfpPolyline> moveTouchingPointToRingStart(const std::vector<N
             continue;
         }
 
+        if (!validateInnerStarts)
+            continue;
+
+        if (!collision)
+            collision.emplace(makeCollisionContext(fixed, moving, reference));
+
         size_t bestIndex = 0;
         double bestDistance = std::numeric_limits<double>::max();
         for (size_t i = 0; i < ring.size(); ++i) {
-            double overlap = intersectionArea(fixed, moving, reference, ring[i]);
+            double overlap = intersectionArea(*collision, ring[i]);
             double distance = polygonDistance(fixed, moving, reference, ring[i]);
             if (overlap > overlapTolerance)
                 distance += overlap * 1000.0;
