@@ -135,7 +135,25 @@ void Widget::onNest()
     cfg.stockHeight = ui->spinStockH->value();
     cfg.nfpMethod = ui->comboNfpMethod->currentIndex();
     cfg.allowRotation = ui->chkRotation->isChecked();
+    cfg.rotationSteps = ui->spinRotSteps->value();
+    cfg.enableBacktrack = ui->chkBacktrack->isChecked();
+    cfg.enableBLF = ui->chkBLF->isChecked();
+    cfg.enableSA = ui->chkSA->isChecked();
     nester.setConfig(cfg);
+
+    if (!nestWindow)
+        nestWindow = new NestWindow(this);
+
+    auto stockPoly = nester.getStock();
+    nestWindow->beginNest(stockPoly);
+
+    nester.setStepCallback([this](const std::vector<MyCtrlView::Polyline>& placed,
+                                   const MyCtrlView::Polyline& /*stock*/,
+                                   double utilization, int /*pieceIndex*/) {
+        if (!placed.empty()) {
+            nestWindow->addPlacedPiece(placed.back(), utilization);
+        }
+    });
 
     QTime t;
     t.start();
@@ -149,7 +167,6 @@ void Widget::onNest()
     qDebug() << "Nesting took" << t.elapsed() << "ms";
 
     auto placed = nester.getPlacedPolygons();
-    auto stock = nester.getStock();
     double util = nester.getUtilization();
 
     qDebug() << "Placed" << placed.size() << "pieces, utilization:"
@@ -157,9 +174,7 @@ void Widget::onNest()
 
     ui->lblUtilization->setText(QString("利用率: %1%").arg(util, 0, 'f', 1));
 
-    if (!nestWindow)
-        nestWindow = new NestWindow(this);
-    nestWindow->setNestResult(stock, placed, util);
+    nestWindow->endNest();
     nestWindow->show();
     nestWindow->raise();
     nestWindow->activateWindow();
