@@ -8,7 +8,9 @@
 #include "ui_widget.h"
 
 #include "nest/nfpplacer.h"
+#include "nest/nester.h"
 #include "shapes/utiltool.h"
+#include "view/nestwindow.h"
 #include "test.h"
 
 namespace {
@@ -34,18 +36,14 @@ Widget::Widget(QWidget* parent)
     ui->setupUi(this);
 
     auto p1 = GetTestP1();
-//    p1.rotate(1.7);
     auto p2 = GetTestP2();
-//    p2.rotate(0.4);
     ui->openGLWidget->setPolyline(p1, p2);
 
     connect(ui->btnDrawP1, SIGNAL(clicked()), this, SLOT(onDrawP1()));
     connect(ui->btnDrawP2, SIGNAL(clicked()), this, SLOT(onDrawP2()));
     connect(ui->btnExec, SIGNAL(clicked()), this, SLOT(onExec()));
+    connect(ui->btnNest, SIGNAL(clicked()), this, SLOT(onNest()));
     connect(&timer, SIGNAL(timeout()), this, SLOT(onTimer()));
-
-    //OnLoad();
-    //    timer.start(1000);
 }
 
 Widget::~Widget()
@@ -100,7 +98,72 @@ void Widget::onExec()
     timer.start(30);
 }
 
+void Widget::onNest()
+{
+    MyCtrlView::Polyline p1, p2;
+    ui->openGLWidget->getPolyline(p1, p2);
+    S_Shape2D::cleanPolygon(p1);
+    S_Shape2D::cleanPolygon(p2);
 
+    int p1Count = ui->spinP1Count->value();
+    int p2Count = ui->spinP2Count->value();
+
+    if ((p1Count > 0 && p1.size() < 3) || (p2Count > 0 && p2.size() < 3)) {
+        qDebug() << "Need valid P1 and P2 polygons for nesting";
+        return;
+    }
+
+    if (p1Count == 0 && p2Count == 0) {
+        qDebug() << "No pieces to nest";
+        return;
+    }
+
+    std::vector<MyCtrlView::Polyline> pieces;
+    for (int i = 0; i < p1Count; ++i)
+        pieces.push_back(p1);
+    for (int i = 0; i < p2Count; ++i)
+        pieces.push_back(p2);
+
+    qDebug() << "Nesting" << p1Count << "x P1 +" << p2Count << "x P2 =" << pieces.size() << "pieces";
+
+    S_Shape2D::Nester nester;
+    nester.setStock(ui->spinStockW->value(), ui->spinStockH->value());
+    nester.setPolygons(pieces);
+
+    S_Shape2D::Nester::Config cfg;
+    cfg.stockWidth = ui->spinStockW->value();
+    cfg.stockHeight = ui->spinStockH->value();
+    cfg.nfpMethod = ui->comboNfpMethod->currentIndex();
+    cfg.allowRotation = ui->chkRotation->isChecked();
+    nester.setConfig(cfg);
+
+    QTime t;
+    t.start();
+
+    if (ui->comboNestMethod->currentIndex() == 0) {
+        nester.execBL();
+    } else {
+        nester.execGreedy();
+    }
+
+    qDebug() << "Nesting took" << t.elapsed() << "ms";
+
+    auto placed = nester.getPlacedPolygons();
+    auto stock = nester.getStock();
+    double util = nester.getUtilization();
+
+    qDebug() << "Placed" << placed.size() << "pieces, utilization:"
+             << QString::number(util, 'f', 1) << "%";
+
+    ui->lblUtilization->setText(QString("利用率: %1%").arg(util, 0, 'f', 1));
+
+    if (!nestWindow)
+        nestWindow = new NestWindow(this);
+    nestWindow->setNestResult(stock, placed, util);
+    nestWindow->show();
+    nestWindow->raise();
+    nestWindow->activateWindow();
+}
 
 void Widget::onTimer()
 {
@@ -169,6 +232,3 @@ void Widget::OnLoad(const QString &absoluteFilePath)
     p2.rotate(1.7);
     ui->openGLWidget->setPolyline(p1, p2);
 }
-
-
-

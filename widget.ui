@@ -14,17 +14,20 @@
    <string>Widget</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="1" column="1">
-    <widget class="QPushButton" name="btnDrawP2">
-     <property name="text">
-      <string>绘制P2</string>
-     </property>
-    </widget>
+   <item row="0" column="0" colspan="8">
+    <widget class="MyCtrlView" name="openGLWidget"/>
    </item>
    <item row="1" column="0">
     <widget class="QPushButton" name="btnDrawP1">
      <property name="text">
       <string>绘制P1</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QPushButton" name="btnDrawP2">
+     <property name="text">
+      <string>绘制P2</string>
      </property>
     </widget>
    </item>
@@ -34,9 +37,6 @@
       <string>求NFP</string>
      </property>
     </widget>
-   </item>
-   <item row="0" column="0" colspan="5">
-    <widget class="MyCtrlView" name="openGLWidget"/>
    </item>
    <item row="1" column="3">
     <widget class="QPushButton" name="btnNest">
@@ -62,6 +62,124 @@
        <string>Minkowski法</string>
       </property>
      </item>
+    </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QLabel" name="lblP1Count">
+     <property name="text">
+      <string>P1个数:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="1">
+    <widget class="QSpinBox" name="spinP1Count">
+     <property name="minimum">
+      <number>0</number>
+     </property>
+     <property name="maximum">
+      <number>999</number>
+     </property>
+     <property name="value">
+      <number>1</number>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="2">
+    <widget class="QLabel" name="lblP2Count">
+     <property name="text">
+      <string>P2个数:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="3">
+    <widget class="QSpinBox" name="spinP2Count">
+     <property name="minimum">
+      <number>0</number>
+     </property>
+     <property name="maximum">
+      <number>999</number>
+     </property>
+     <property name="value">
+      <number>1</number>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="4">
+    <widget class="QLabel" name="lblStockW">
+     <property name="text">
+      <string>料板宽:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="5">
+    <widget class="QDoubleSpinBox" name="spinStockW">
+     <property name="minimum">
+      <double>10.000000000000000</double>
+     </property>
+     <property name="maximum">
+      <double>99999.000000000000000</double>
+     </property>
+     <property name="value">
+      <double>500.000000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="6">
+    <widget class="QLabel" name="lblStockH">
+     <property name="text">
+      <string>料板高:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="7">
+    <widget class="QDoubleSpinBox" name="spinStockH">
+     <property name="minimum">
+      <double>10.000000000000000</double>
+     </property>
+     <property name="maximum">
+      <double>99999.000000000000000</double>
+     </property>
+     <property name="value">
+      <double>500.000000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QLabel" name="lblNestMethod">
+     <property name="text">
+      <string>排版算法:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="1" colspan="2">
+    <widget class="QComboBox" name="comboNestMethod">
+     <item>
+      <property name="text">
+       <string>Bottom-Left</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Greedy/TOPOS</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="3" column="3">
+    <widget class="QCheckBox" name="chkRotation">
+     <property name="text">
+      <string>允许旋转</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="4" colspan="2">
+    <widget class="QLabel" name="lblUtilization">
+     <property name="text">
+      <string>利用率: --</string>
+     </property>
     </widget>
    </item>
   </layout>

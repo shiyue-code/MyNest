@@ -3,12 +3,15 @@
 
 #include <QTimer>
 #include <QWidget>
+#include <QPointer>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class Widget;
 }
 QT_END_NAMESPACE
+
+class NestWindow;
 
 class Widget : public QWidget {
     Q_OBJECT
@@ -22,6 +25,7 @@ private slots:
     void onDrawP2();
 
     void onExec();
+    void onNest();
 
     void onTimer();
 
@@ -31,5 +35,6 @@ private:
     Ui::Widget* ui;
 
     QTimer timer;
+    QPointer<NestWindow> nestWindow;
 };
 #endif // WIDGET_H

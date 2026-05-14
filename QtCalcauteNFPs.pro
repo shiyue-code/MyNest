@@ -12,6 +12,7 @@ SOURCES += \
     actions/s_action.cpp \
     main.cpp \
     nest/clipper/clipper.cpp \
+    nest/nester.cpp \
     nest/nesttools.cpp \
     nest/nfpplacer.cpp \
     nest/nfpplacer_minkowski.cpp \
@@ -27,11 +28,13 @@ SOURCES += \
     shapes/s_shapecontainer.cpp \
     view/kwctrlview.cpp \
     view/myctrlview.cpp \
+    view/nestwindow.cpp \
     widget.cpp
 
 HEADERS += \
     actions/s_action.h \
     nest/clipper/clipper.hpp \
+    nest/nester.h \
     nest/nfpplacer_common.h \
     nest/nfpplacer.h \
     s_common.hpp \
@@ -49,6 +52,7 @@ HEADERS += \
     test.h \
     view/kwctrlview.h \
     view/myctrlview.h \
+    view/nestwindow.h \
     widget.h
 
 FORMS += \

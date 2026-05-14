@@ -198,34 +198,20 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
 
     auto func = [&](std::vector<Polyline>& nestPolys){
         if (!nestPolys.empty()) {
-
-            int i = 3;
-            bool vi = true;
+            int idx = 0;
             for (const auto& nfp : nestPolys) {
 
-                if (i-- > 0)
+                if (idx == 0)
                     glColor3f(1, 1, 0);
-                else
+                else if (idx == 1)
                     glColor3f(0, 1, 1);
-
-                if (vi) {
-                    double xs = ptCur.x - nfp[0].x;
-                    double ys = ptCur.y - nfp[0].y;
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-                    glBegin(GL_POLYGON);
-                    for (const auto& pt : nfp) {
-                        glVertex2d(pt.x + xs, pt.y + ys);
-                    }
-                    glEnd();
-                    vi = false;
-                }
+                else
+                    glColor3f(0.5f, 0.5f, 1.0f);
+                idx++;
 
                 glPointSize(5);
                 glBegin(GL_POINTS);
-                auto pt = nfp[0];
-                /*for (const auto& pt : nfp)*/ {
-                    glVertex2d(pt.x, pt.y);
-                }
+                glVertex2d(nfp[0].x, nfp[0].y);
                 glEnd();
 
                 glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
