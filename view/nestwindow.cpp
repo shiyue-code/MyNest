@@ -4,6 +4,8 @@
 #include "shapes/utiltool.h"
 
 #include <QVBoxLayout>
+#include <QCoreApplication>
+#include <QCloseEvent>
 #include <QPainter>
 #include <QOpenGLFunctions>
 
@@ -20,6 +22,23 @@ public:
         ResetView();
         update();
     }
+
+    void beginNest(const Polyline& stock) {
+        this->stock = stock;
+        this->placed.clear();
+        this->utilization = 0;
+        ResetView();
+        update();
+    }
+
+    void addPiece(const Polyline& piece, double util) {
+        this->placed.push_back(piece);
+        this->utilization = util;
+        update();
+    }
+
+    int placedSize() const { return (int)placed.size(); }
+    double utilizationValue() const { return utilization; }
 
     void ResetView() override {
         S_Shape2D::Box2D box;
@@ -128,6 +147,31 @@ void NestWindow::setNestResult(const Polyline& stock,
     lblInfo->setText(QString::fromUtf8("  排版件数: %1 | 利用率: %2% | 双击重置视图")
                      .arg(placed.size())
                      .arg(utilization, 0, 'f', 1));
+}
+
+void NestWindow::beginNest(const Polyline& stock)
+{
+    view->beginNest(stock);
+    lblInfo->setText(QString::fromUtf8("  排版中..."));
+    show();
+    raise();
+    activateWindow();
+}
+
+void NestWindow::addPlacedPiece(const Polyline& piece, double utilization)
+{
+    view->addPiece(piece, utilization);
+    lblInfo->setText(QString::fromUtf8("  排版中... 已放置 %1 件 | 利用率: %2%")
+                     .arg(view->placedSize())
+                     .arg(utilization, 0, 'f', 1));
+    QCoreApplication::processEvents();
+}
+
+void NestWindow::endNest()
+{
+    lblInfo->setText(QString::fromUtf8("  排版完成 | 件数: %1 | 利用率: %2% | 双击重置视图")
+                     .arg(view->placedSize())
+                     .arg(view->utilizationValue(), 0, 'f', 1));
 }
 
 void NestWindow::closeEvent(QCloseEvent*)

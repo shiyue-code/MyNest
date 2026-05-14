@@ -19,6 +19,10 @@ public:
                        const std::vector<Polyline>& placed,
                        double utilization);
 
+    void beginNest(const Polyline& stock);
+    void addPlacedPiece(const Polyline& piece, double utilization);
+    void endNest();
+
 protected:
     void closeEvent(QCloseEvent* event) override;
 
