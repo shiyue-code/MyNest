@@ -7,9 +7,11 @@
 
 #include <QDebug>
 #include <QElapsedTimer>
+#include <QCoreApplication>
 #include <algorithm>
 #include <limits>
 #include <future>
+#include <numeric>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -39,6 +41,21 @@ void Nester::setConfig(const Config& cfg)
     config = cfg;
 }
 
+void Nester::setStepCallback(StepCallback cb)
+{
+    stepCallback = std::move(cb);
+}
+
+void Nester::notifyStep(int pieceIndex)
+{
+    if (stepCallback) {
+        auto placed = getPlacedPolygons();
+        auto stock = getStock();
+        double util = getUtilization();
+        stepCallback(placed, stock, util, pieceIndex);
+    }
+}
+
 Nester::Polyline Nester::buildStockPolyline() const
 {
     Polyline stock;
@@ -47,19 +64,6 @@ Nester::Polyline Nester::buildStockPolyline() const
     stock.add({config.stockWidth, config.stockHeight});
     stock.add({0, config.stockHeight});
     return stock;
-}
-
-static double ptSegDist(const NestPoint& p, const NestPoint& a, const NestPoint& b)
-{
-    NestPoint ab = b - a;
-    NestPoint ap = p - a;
-    double len2 = ab.square();
-    if (len2 < 1e-16)
-        return std::sqrt(ap.square());
-    double t = ap.dot(ab) / len2;
-    t = std::max(0.0, std::min(1.0, t));
-    NestPoint proj = a + ab * t;
-    return std::sqrt((p - proj).square());
 }
 
 static bool ptInside(const NestPoint& pt, const NestPoly& poly)
@@ -76,6 +80,20 @@ static bool ptInside(const NestPoint& pt, const NestPoly& poly)
     return (c & 1) != 0;
 }
 
+static bool isOutsideAllNfps(const NestPoint& pt, const std::vector<NestPoly>& nfps)
+{
+    ClipperLib::IntPoint cp;
+    cp.X = static_cast<ClipperLib::cInt>(std::llround(pt.x * clipperScaler));
+    cp.Y = static_cast<ClipperLib::cInt>(std::llround(pt.y * clipperScaler));
+    for (const auto& nfp : nfps) {
+        if (nfp.size() < 3) continue;
+        ClipperLib::Path path = polygon2Path(nfp);
+        if (ClipperLib::PointInPolygon(cp, path) == 1)
+            return false;
+    }
+    return true;
+}
+
 bool Nester::isInsideStock(const Polyline& poly, const Point& offset) const
 {
     for (size_t i = 0; i < poly.size(); ++i) {
@@ -88,39 +106,25 @@ bool Nester::isInsideStock(const Polyline& poly, const Point& offset) const
     return true;
 }
 
-static bool isOutsideAllNfps(const NestPoint& pt, const std::vector<NestPoly>& nfps)
-{
-    ClipperLib::IntPoint cp;
-    cp.X = static_cast<ClipperLib::cInt>(std::llround(pt.x * clipperScaler));
-    cp.Y = static_cast<ClipperLib::cInt>(std::llround(pt.y * clipperScaler));
-
-    for (const auto& nfp : nfps) {
-        if (nfp.size() < 3) continue;
-        ClipperLib::Path path = polygon2Path(nfp);
-        int result = ClipperLib::PointInPolygon(cp, path);
-        if (result == 1)
-            return false;
-    }
-    return true;
-}
-
 std::vector<double> Nester::getRotationAngles() const
 {
-    if (config.allowRotation)
-        return {0, M_PI / 2, M_PI, 3 * M_PI / 2};
-    return {0};
+    if (!config.allowRotation)
+        return {0};
+    int steps = std::max(1, config.rotationSteps);
+    std::vector<double> angles;
+    for (int i = 0; i < steps; ++i)
+        angles.push_back(2.0 * M_PI * i / steps);
+    return angles;
 }
 
 double Nester::concavityMeasure(const Polyline& poly) const
 {
-    if (poly.size() < 3)
-        return 0;
+    if (poly.size() < 3) return 0;
     Polyline copy = poly;
     double area = std::fabs(copy.area());
     Box2D bbox = calcBoundingBox(poly);
     double bboxArea = bbox.width() * bbox.height();
-    if (bboxArea < 1e-12)
-        return 0;
+    if (bboxArea < 1e-12) return 0;
     return 1.0 - area / bboxArea;
 }
 
@@ -148,10 +152,9 @@ static std::vector<NestPoly> computeNfpsForMoving(const NestPoly& moving,
         NfpPlacer placer(fixed, moving);
         placer.execMinkowski();
         auto nfps = placer.getNFPs();
-        for (const auto& nfp : nfps) {
+        for (const auto& nfp : nfps)
             if (nfp.size() >= 3)
                 result.push_back(nfp);
-        }
     }
     return result;
 }
@@ -168,13 +171,33 @@ static std::vector<NestPoint> getNfpVertices(const NestPoly& fixed, const NestPo
     return result;
 }
 
+std::vector<NestPoint> Nester::sampleNfpBoundary(const std::vector<Polyline>& nfps, double step) const
+{
+    std::vector<NestPoint> samples;
+    for (const auto& nfp : nfps) {
+        size_t n = nfp.size();
+        if (n < 3) continue;
+        for (size_t i = 0; i < n; ++i) {
+            NestPoint a = nfp[i];
+            NestPoint b = nfp[(i + 1) % n];
+            double len = (b - a).norm();
+            if (len < 1e-9) continue;
+            int numSamples = std::max(1, (int)(len / step));
+            for (int j = 0; j <= numSamples; ++j) {
+                double t = (double)j / numSamples;
+                samples.push_back({a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t});
+            }
+        }
+    }
+    return samples;
+}
+
 double Nester::edgeContactLength(const Polyline& poly, const Point& offset,
                                  const std::vector<Placement>& placed) const
 {
     double total = 0;
     NestPoly moved = poly;
     moved.translate(offset);
-
     for (const auto& p : placed) {
         NestPoly fixed = p.polygon;
         fixed.translate(p.offset);
@@ -213,7 +236,6 @@ Nester::ScoredPosition Nester::evaluatePosition(const Polyline& poly, const Poin
     ScoredPosition sp;
     sp.pos = pos;
     sp.rotation = rotation;
-
     std::vector<Placement> testPlaced = placed;
     testPlaced.push_back({poly, pos, rotation});
     Box2D bbox = computePlacedBBox(testPlaced);
@@ -256,11 +278,9 @@ static NestPoint blSlide(const NestPoly& poly, NestPoint pos,
 {
     Box2D bbox = calcBoundingBox(poly);
     double step = std::max(10.0, std::min(bbox.width(), bbox.height()) * 0.2);
-
     for (int iter = 0; iter < 15; ++iter) {
         NestPoint best = pos;
         bool improved = false;
-
         double dyArr[3] = {-step, 0, step};
         double dxArr[3] = {-step, 0, step};
         for (int yi = 0; yi < 3; ++yi) {
@@ -289,40 +309,12 @@ Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot
                                                 const std::vector<Placement>& placed,
                                                 bool useBL) const
 {
-    QElapsedTimer t;
-    ScoredPosition bestSP;
-    bestSP.score = 1e18;
-    bestSP.rotation = rot;
-
     NestPoly rotated = poly;
     if (std::fabs(rot) > 1e-9)
         rotated.rotate(rot);
 
-    t.start();
     auto nfps = computeNfpsForMoving(rotated, placed, config.nfpMethod);
-    qint64 nfpMs = t.elapsed();
 
-    for (size_t i = 0; i < nfps.size(); ++i) {
-        Box2D nfpBox;
-        for (const auto& pt : nfps[i]) nfpBox.append(pt);
-        qDebug() << "      nfp" << i << "verts:" << nfps[i].size()
-                 << "bbox:" << nfpBox.left() << nfpBox.top() << nfpBox.right() << nfpBox.bottom();
-
-        for (const auto& p : placed) {
-            ClipperLib::IntPoint ref;
-            ref.X = static_cast<ClipperLib::cInt>(std::llround(p.offset.x * clipperScaler));
-            ref.Y = static_cast<ClipperLib::cInt>(std::llround(p.offset.y * clipperScaler));
-            ClipperLib::Path path = polygon2Path(nfps[i]);
-            int pir = ClipperLib::PointInPolygon(ref, path);
-            qDebug() << "        placed ref (" << p.offset.x << p.offset.y << ") in nfp:" << pir;
-        }
-    }
-
-    Box2D movingBox = calcBoundingBox(rotated);
-    qDebug() << "      moving bbox:" << movingBox.left() << movingBox.top()
-             << movingBox.right() << movingBox.bottom();
-
-    t.start();
     std::vector<NestPoint> candidates;
     candidates.push_back({0, 0});
 
@@ -336,24 +328,20 @@ Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot
     Box2D bb = calcBoundingBox(rotated);
     double pw = bb.width();
     double ph = bb.height();
-    for (double y = 0; y <= config.stockHeight - ph + EPS; y += std::max(10.0, ph * 0.3)) {
-        for (double x = 0; x <= config.stockWidth - pw + EPS; x += std::max(10.0, pw * 0.3)) {
-            candidates.push_back({x, y});
-        }
-    }
-    qint64 candMs = t.elapsed();
+    double nfpStep = std::max(5.0, std::min(pw, ph) * 0.3);
+    auto nfpSamples = sampleNfpBoundary(nfps, nfpStep);
+    candidates.insert(candidates.end(), nfpSamples.begin(), nfpSamples.end());
 
-    qint64 checkMs = 0, slideMs = 0;
-    int rejected = 0, validCount = 0;
+    ScoredPosition bestSP;
+    bestSP.score = 1e18;
+    bestSP.rotation = rot;
 
-    t.start();
     std::vector<NestPoint> validCands;
     for (auto& cand : candidates) {
         if (!isInsideStock(rotated, cand)) continue;
-        if (!isOutsideAllNfps(cand, nfps)) { rejected++; continue; }
+        if (!isOutsideAllNfps(cand, nfps)) continue;
         validCands.push_back(cand);
     }
-    checkMs = t.elapsed();
 
     if (useBL) {
         std::sort(validCands.begin(), validCands.end(), [](const NestPoint& a, const NestPoint& b) {
@@ -361,45 +349,219 @@ Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot
             double db = b.y * 10000 + b.x;
             return da < db;
         });
-
         int slideLimit = std::min((int)validCands.size(), 50);
-        t.start();
         for (int i = 0; i < slideLimit; ++i) {
-            NestPoint cand = validCands[i];
-            NestPoint finalPos = blSlide(rotated, cand, nfps, config.stockWidth, config.stockHeight);
+            NestPoint finalPos = blSlide(rotated, validCands[i], nfps, config.stockWidth, config.stockHeight);
             if (!isInsideStock(rotated, finalPos)) continue;
             if (!isOutsideAllNfps(finalPos, nfps)) continue;
-
             ScoredPosition sp = evaluatePosition(rotated, finalPos, rot, placed);
-            validCount++;
             if (sp.score < bestSP.score) {
                 bestSP = sp;
                 bestSP.rotation = rot;
             }
         }
-        slideMs = t.elapsed();
     } else {
-        t.start();
         for (auto& cand : validCands) {
             ScoredPosition sp = evaluatePosition(rotated, cand, rot, placed);
-            validCount++;
             if (sp.score < bestSP.score) {
                 bestSP = sp;
                 bestSP.rotation = rot;
             }
         }
-        slideMs = t.elapsed();
+    }
+    return bestSP;
+}
+
+std::vector<NestPoint> Nester::blfFill(const Polyline& poly, const std::vector<Placement>& placed) const
+{
+    std::vector<NestPoint> gapCandidates;
+    Box2D stockBox;
+    stockBox.append({0, 0});
+    stockBox.append({config.stockWidth, config.stockHeight});
+
+    double step = std::max(5.0, std::min(config.stockWidth, config.stockHeight) * 0.02);
+
+    for (double y = 0; y <= config.stockHeight; y += step) {
+        for (double x = 0; x <= config.stockWidth; x += step) {
+            NestPoint pt = {x, y};
+            if (!isInsideStock(poly, pt)) continue;
+
+            bool inGap = true;
+            for (const auto& p : placed) {
+                NestPoly fixed = p.polygon;
+                fixed.translate(p.offset);
+                ClipperLib::IntPoint cp;
+                cp.X = static_cast<ClipperLib::cInt>(std::llround(pt.x * clipperScaler));
+                cp.Y = static_cast<ClipperLib::cInt>(std::llround(pt.y * clipperScaler));
+                ClipperLib::Path path = polygon2Path(fixed);
+                if (ClipperLib::PointInPolygon(cp, path) != 0) {
+                    inGap = false;
+                    break;
+                }
+            }
+            if (inGap)
+                gapCandidates.push_back(pt);
+        }
+    }
+    return gapCandidates;
+}
+
+bool Nester::backtrackPlace(std::vector<int>& order, int depth, std::vector<Placement>& result,
+                            bool useBL) const
+{
+    if (depth >= (int)order.size())
+        return true;
+
+    Polyline poly = polygons[order[depth]];
+    cleanPolygon(poly);
+    if (poly.size() < 3)
+        return backtrackPlace(order, depth + 1, result, useBL);
+    if (poly.orientation() == Polyline::Clockwise)
+        poly.reverse();
+
+    auto rotations = getRotationAngles();
+    ScoredPosition bestSP;
+    bestSP.score = 1e18;
+    bool found = false;
+
+    for (double rot : rotations) {
+        NestPoly rotated = poly;
+        if (std::fabs(rot) > 1e-9)
+            rotated.rotate(rot);
+
+        auto nfps = computeNfpsForMoving(rotated, result, config.nfpMethod);
+
+        std::vector<NestPoint> candidates;
+        candidates.push_back({0, 0});
+        for (const auto& p : result) {
+            NestPoly fixed = p.polygon;
+            fixed.translate(p.offset);
+            auto nfpC = getNfpVertices(fixed, rotated, config.nfpMethod);
+            candidates.insert(candidates.end(), nfpC.begin(), nfpC.end());
+        }
+
+        Box2D bb = calcBoundingBox(rotated);
+        double nfpStep = std::max(5.0, std::min(bb.width(), bb.height()) * 0.3);
+        auto nfpSamples = sampleNfpBoundary(nfps, nfpStep);
+        candidates.insert(candidates.end(), nfpSamples.begin(), nfpSamples.end());
+
+        for (auto& cand : candidates) {
+            if (!isInsideStock(rotated, cand)) continue;
+            if (!isOutsideAllNfps(cand, nfps)) continue;
+
+            ScoredPosition sp;
+            if (useBL) {
+                NestPoint finalPos = blSlide(rotated, cand, nfps, config.stockWidth, config.stockHeight);
+                if (!isInsideStock(rotated, finalPos)) continue;
+                if (!isOutsideAllNfps(finalPos, nfps)) continue;
+                sp = evaluatePosition(rotated, finalPos, rot, result);
+            } else {
+                sp = evaluatePosition(rotated, cand, rot, result);
+            }
+
+            if (sp.score < bestSP.score) {
+                bestSP = sp;
+                bestSP.rotation = rot;
+                found = true;
+            }
+        }
     }
 
-    qDebug() << "    rot" << (rot * 180 / M_PI) << "°"
-             << "| NFP:" << nfpMs << "ms (" << nfps.size() << "rings)"
-             << "| cands:" << candMs << "ms (" << candidates.size() << ")"
-             << "| check:" << checkMs << "ms (" << rejected << "rej)"
-             << "| slide:" << slideMs << "ms"
-             << "| valid:" << validCount
-             << "| best:" << bestSP.pos.x << bestSP.pos.y << "score:" << bestSP.score;
+    if (!found) {
+        if (depth < config.backtrackDepth && depth > 0) {
+            result.pop_back();
+            return backtrackPlace(order, depth - 1, result, useBL);
+        }
+        return false;
+    }
 
-    return bestSP;
+    Polyline placedPoly = poly;
+    if (std::fabs(bestSP.rotation) > 1e-9)
+        placedPoly.rotate(bestSP.rotation);
+    result.push_back({placedPoly, bestSP.pos, bestSP.rotation});
+
+    return backtrackPlace(order, depth + 1, result, useBL);
+}
+
+void Nester::simulatedAnnealing(std::vector<Placement>& currentPlacements, int iterations) const
+{
+    if (currentPlacements.size() < 2) return;
+
+    double currentScore = computePlacedBBox(currentPlacements).width() *
+                          computePlacedBBox(currentPlacements).height();
+    double bestScore = currentScore;
+    auto bestPlacements = currentPlacements;
+
+    double temp = 1000.0;
+    double cooling = 0.995;
+
+    for (int iter = 0; iter < iterations; ++iter) {
+        int i = rng() % currentPlacements.size();
+        int j = rng() % currentPlacements.size();
+        if (i == j) continue;
+
+        auto trial = currentPlacements;
+        std::swap(trial[i], trial[j]);
+
+        for (auto& p : trial) {
+            p.offset = {0, 0};
+        }
+
+        std::vector<Placement> rebuilt;
+        bool ok = true;
+        for (auto& p : trial) {
+            Polyline poly = p.polygon;
+            if (std::fabs(p.rotation) > 1e-9)
+                poly.rotate(p.rotation);
+
+            auto nfps = computeNfpsForMoving(poly, rebuilt, config.nfpMethod);
+
+            std::vector<NestPoint> candidates;
+            candidates.push_back({0, 0});
+            for (const auto& rp : rebuilt) {
+                NestPoly fixed = rp.polygon;
+                fixed.translate(rp.offset);
+                auto nfpC = getNfpVertices(fixed, poly, config.nfpMethod);
+                candidates.insert(candidates.end(), nfpC.begin(), nfpC.end());
+            }
+
+            NestPoint bestPos = {config.stockWidth + 1, config.stockHeight + 1};
+            double bestPosScore = 1e18;
+            for (auto& cand : candidates) {
+                if (!isInsideStock(poly, cand)) continue;
+                if (!isOutsideAllNfps(cand, nfps)) continue;
+                ScoredPosition sp = evaluatePosition(poly, cand, p.rotation, rebuilt);
+                if (sp.score < bestPosScore) {
+                    bestPosScore = sp.score;
+                    bestPos = cand;
+                }
+            }
+
+            if (bestPos.x > config.stockWidth || bestPos.y > config.stockHeight) {
+                ok = false;
+                break;
+            }
+            rebuilt.push_back({poly, bestPos, p.rotation});
+        }
+
+        if (!ok) continue;
+
+        double trialScore = computePlacedBBox(rebuilt).width() *
+                            computePlacedBBox(rebuilt).height();
+        double delta = trialScore - currentScore;
+
+        if (delta < 0 || std::exp(-delta / temp) > (double)(rng() % 1000) / 1000.0) {
+            currentPlacements = rebuilt;
+            currentScore = trialScore;
+            if (currentScore < bestScore) {
+                bestScore = currentScore;
+                bestPlacements = currentPlacements;
+            }
+        }
+        temp *= cooling;
+    }
+
+    currentPlacements = bestPlacements;
 }
 
 void Nester::execBL()
@@ -413,7 +575,7 @@ void Nester::execBL()
         indices[i] = i;
     sortByComplexity(indices);
 
-    qDebug() << "BL sorted:" << indices;
+    qDebug() << "BL sorted:" << indices << "rotation steps:" << config.rotationSteps;
 
     for (int idx : indices) {
         Polyline poly = polygons[idx];
@@ -452,16 +614,73 @@ void Nester::execBL()
                 placedPoly.rotate(bestSP.rotation);
             placements.push_back({placedPoly, bestSP.pos, bestSP.rotation});
 
-            Box2D totalBbox = computePlacedBBox(placements);
-            double util = computePlacedArea(placements) / (config.stockWidth * config.stockHeight) * 100.0;
+            double util = getUtilization();
             qDebug() << "BL placed" << idx << "at" << bestSP.pos.x << bestSP.pos.y
                      << "rot" << (bestSP.rotation * 180 / M_PI)
-                     << "| bbox:" << totalBbox.left() << totalBbox.top()
-                     << totalBbox.right() << totalBbox.bottom()
                      << "| util:" << util << "%";
+            notifyStep(idx);
         } else {
             qDebug() << "BL skipped" << idx;
         }
+    }
+
+    if (config.enableBLF) {
+        qDebug() << "BLF gap filling...";
+        for (int idx : indices) {
+            Polyline poly = polygons[idx];
+            cleanPolygon(poly);
+            if (poly.size() < 3) continue;
+            if (poly.orientation() == Polyline::Clockwise)
+                poly.reverse();
+
+            bool inPlaced = false;
+            for (size_t pi = 0; pi < placements.size(); ++pi) {
+                if (std::fabs(placements[pi].polygon.area() - poly.area()) < 1e-6 &&
+                    placements[pi].polygon.size() == poly.size()) {
+                    inPlaced = true;
+                    break;
+                }
+            }
+            if (inPlaced) continue;
+
+            auto gapCands = blfFill(poly, placements);
+            ScoredPosition bestGap;
+            bestGap.score = 1e18;
+            bool gapFound = false;
+
+            for (auto& cand : gapCands) {
+                for (double rot : {0.0, M_PI / 2, M_PI, 3 * M_PI / 2}) {
+                    NestPoly rotated = poly;
+                    if (std::fabs(rot) > 1e-9)
+                        rotated.rotate(rot);
+                    if (!isInsideStock(rotated, cand)) continue;
+
+                    auto nfps = computeNfpsForMoving(rotated, placements, config.nfpMethod);
+                    if (!isOutsideAllNfps(cand, nfps)) continue;
+
+                    ScoredPosition sp = evaluatePosition(rotated, cand, rot, placements);
+                    if (sp.score < bestGap.score) {
+                        bestGap = sp;
+                        gapFound = true;
+                    }
+                }
+            }
+
+            if (gapFound) {
+                Polyline placedPoly = poly;
+                if (std::fabs(bestGap.rotation) > 1e-9)
+                    placedPoly.rotate(bestGap.rotation);
+                placements.push_back({placedPoly, bestGap.pos, bestGap.rotation});
+                qDebug() << "BLF filled" << idx << "at" << bestGap.pos.x << bestGap.pos.y;
+                notifyStep(idx);
+            }
+        }
+    }
+
+    if (config.enableSA && placements.size() >= 2) {
+        qDebug() << "Simulated annealing optimization...";
+        simulatedAnnealing(placements, config.saIterations);
+        qDebug() << "SA done, util:" << getUtilization() << "%";
     }
 
     qDebug() << "BL took" << timer.elapsed() << "ms placed" << placements.size() << "/" << polygons.size();
@@ -478,55 +697,69 @@ void Nester::execGreedy()
         indices[i] = i;
     sortByComplexity(indices);
 
-    qDebug() << "Greedy sorted:" << indices;
+    qDebug() << "Greedy sorted:" << indices << "rotation steps:" << config.rotationSteps;
 
-    for (int idx : indices) {
-        Polyline poly = polygons[idx];
-        cleanPolygon(poly);
-        if (poly.size() < 3) continue;
-        if (poly.orientation() == Polyline::Clockwise)
-            poly.reverse();
-
-        auto rotations = getRotationAngles();
-        std::vector<std::future<ScoredPosition>> futures;
-        futures.reserve(rotations.size());
-
-        for (double rot : rotations) {
-            auto placementsCopy = placements;
-            futures.push_back(std::async(std::launch::async,
-                [this, poly, rot, placementsCopy]() {
-                    return evaluateRotation(poly, rot, placementsCopy, false);
-                }));
+    if (config.enableBacktrack) {
+        std::vector<int> order = indices;
+        std::vector<Placement> result;
+        if (backtrackPlace(order, 0, result, false)) {
+            placements = result;
+            for (size_t i = 0; i < placements.size(); ++i)
+                notifyStep((int)i);
         }
+    } else {
+        for (int idx : indices) {
+            Polyline poly = polygons[idx];
+            cleanPolygon(poly);
+            if (poly.size() < 3) continue;
+            if (poly.orientation() == Polyline::Clockwise)
+                poly.reverse();
 
-        ScoredPosition bestSP;
-        bestSP.score = 1e18;
-        bool found = false;
+            auto rotations = getRotationAngles();
+            std::vector<std::future<ScoredPosition>> futures;
+            futures.reserve(rotations.size());
 
-        for (auto& f : futures) {
-            ScoredPosition sp = f.get();
-            if (sp.score < bestSP.score) {
-                bestSP = sp;
-                found = true;
+            for (double rot : rotations) {
+                auto placementsCopy = placements;
+                futures.push_back(std::async(std::launch::async,
+                    [this, poly, rot, placementsCopy]() {
+                        return evaluateRotation(poly, rot, placementsCopy, false);
+                    }));
+            }
+
+            ScoredPosition bestSP;
+            bestSP.score = 1e18;
+            bool found = false;
+
+            for (auto& f : futures) {
+                ScoredPosition sp = f.get();
+                if (sp.score < bestSP.score) {
+                    bestSP = sp;
+                    found = true;
+                }
+            }
+
+            if (found) {
+                Polyline placedPoly = poly;
+                if (std::fabs(bestSP.rotation) > 1e-9)
+                    placedPoly.rotate(bestSP.rotation);
+                placements.push_back({placedPoly, bestSP.pos, bestSP.rotation});
+
+                double util = getUtilization();
+                qDebug() << "Greedy placed" << idx << "at" << bestSP.pos.x << bestSP.pos.y
+                         << "rot" << (bestSP.rotation * 180 / M_PI)
+                         << "| util:" << util << "%";
+                notifyStep(idx);
+            } else {
+                qDebug() << "Greedy skipped" << idx;
             }
         }
+    }
 
-        if (found) {
-            Polyline placedPoly = poly;
-            if (std::fabs(bestSP.rotation) > 1e-9)
-                placedPoly.rotate(bestSP.rotation);
-            placements.push_back({placedPoly, bestSP.pos, bestSP.rotation});
-
-            Box2D totalBbox = computePlacedBBox(placements);
-            double util = computePlacedArea(placements) / (config.stockWidth * config.stockHeight) * 100.0;
-            qDebug() << "Greedy placed" << idx << "at" << bestSP.pos.x << bestSP.pos.y
-                     << "rot" << (bestSP.rotation * 180 / M_PI)
-                     << "| bbox:" << totalBbox.left() << totalBbox.top()
-                     << totalBbox.right() << totalBbox.bottom()
-                     << "| util:" << util << "%";
-        } else {
-            qDebug() << "Greedy skipped" << idx;
-        }
+    if (config.enableSA && placements.size() >= 2) {
+        qDebug() << "Simulated annealing optimization...";
+        simulatedAnnealing(placements, config.saIterations);
+        qDebug() << "SA done, util:" << getUtilization() << "%";
     }
 
     qDebug() << "Greedy took" << timer.elapsed() << "ms placed" << placements.size() << "/" << polygons.size();

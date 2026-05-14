@@ -4,7 +4,8 @@
 #include "nfpplacer.h"
 #include "shapes/s_box.hpp"
 #include <vector>
-#include <thread>
+#include <functional>
+#include <random>
 #include <future>
 
 namespace S_Shape2D {
@@ -26,13 +27,25 @@ public:
         double stockHeight = 500.0;
         int nfpMethod = 1;
         bool allowRotation = true;
+        int rotationSteps = 24;
+        bool enableBacktrack = true;
+        int backtrackDepth = 3;
+        bool enableBLF = true;
+        bool enableSA = true;
+        int saIterations = 500;
     };
+
+    using StepCallback = std::function<void(const std::vector<Polyline>& placed,
+                                            const Polyline& stock,
+                                            double utilization,
+                                            int pieceIndex)>;
 
     Nester() = default;
 
     void setStock(double width, double height);
     void setPolygons(const std::vector<Polyline>& polys);
     void setConfig(const Config& cfg);
+    void setStepCallback(StepCallback cb);
 
     void execBL();
     void execGreedy();
@@ -68,9 +81,19 @@ private:
                                     const std::vector<Placement>& placed,
                                     bool useBL) const;
 
+    std::vector<Point> sampleNfpBoundary(const std::vector<Polyline>& nfps, double step) const;
+    std::vector<Point> blfFill(const Polyline& poly, const std::vector<Placement>& placed) const;
+    bool backtrackPlace(std::vector<int>& order, int depth, std::vector<Placement>& result,
+                        bool useBL) const;
+    void simulatedAnnealing(std::vector<Placement>& placements, int iterations) const;
+
+    void notifyStep(int pieceIndex);
+
     std::vector<Polyline> polygons;
     std::vector<Placement> placements;
     Config config;
+    StepCallback stepCallback;
+    mutable std::mt19937 rng{std::random_device{}()};
 };
 
 }
