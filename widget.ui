@@ -20,28 +20,28 @@
    <item row="1" column="0">
     <widget class="QPushButton" name="btnDrawP1">
      <property name="text">
-      <string>绘制P1</string>
+      <string>&#32472;&#21046;P1</string>
      </property>
     </widget>
    </item>
    <item row="1" column="1">
     <widget class="QPushButton" name="btnDrawP2">
      <property name="text">
-      <string>绘制P2</string>
+      <string>&#32472;&#21046;P2</string>
      </property>
     </widget>
    </item>
    <item row="1" column="2">
     <widget class="QPushButton" name="btnExec">
      <property name="text">
-      <string>求NFP</string>
+      <string>&#27714;NFP</string>
      </property>
     </widget>
    </item>
    <item row="1" column="3">
     <widget class="QPushButton" name="btnNest">
      <property name="text">
-      <string>排版</string>
+      <string>&#25490;&#29256;</string>
      </property>
     </widget>
    </item>
@@ -49,17 +49,17 @@
     <widget class="QComboBox" name="comboNfpMethod">
      <item>
       <property name="text">
-       <string>移动碰撞法</string>
+       <string>&#31227;&#21160;&#30896;&#25758;&#27861;</string>
       </property>
      </item>
      <item>
       <property name="text">
-       <string>矢量段法</string>
+       <string>&#30697;&#37327;&#27573;&#27861;</string>
       </property>
      </item>
      <item>
       <property name="text">
-       <string>Minkowski法</string>
+       <string>Minkowski&#27861;</string>
       </property>
      </item>
     </widget>
@@ -67,7 +67,7 @@
    <item row="2" column="0">
     <widget class="QLabel" name="lblP1Count">
      <property name="text">
-      <string>P1个数:</string>
+      <string>P1&#20010;&#25968;:</string>
      </property>
     </widget>
    </item>
@@ -87,7 +87,7 @@
    <item row="2" column="2">
     <widget class="QLabel" name="lblP2Count">
      <property name="text">
-      <string>P2个数:</string>
+      <string>P2&#20010;&#25968;:</string>
      </property>
     </widget>
    </item>
@@ -107,7 +107,7 @@
    <item row="2" column="4">
     <widget class="QLabel" name="lblStockW">
      <property name="text">
-      <string>料板宽:</string>
+      <string>&#26009;&#26495;&#23485;:</string>
      </property>
     </widget>
    </item>
@@ -127,7 +127,7 @@
    <item row="2" column="6">
     <widget class="QLabel" name="lblStockH">
      <property name="text">
-      <string>料板高:</string>
+      <string>&#26009;&#26495;&#39640;:</string>
      </property>
     </widget>
    </item>
@@ -147,7 +147,7 @@
    <item row="3" column="0">
     <widget class="QLabel" name="lblNestMethod">
      <property name="text">
-      <string>排版算法:</string>
+      <string>&#25490;&#29256;&#31639;&#27861;:</string>
      </property>
     </widget>
    </item>
@@ -168,7 +168,7 @@
    <item row="3" column="3">
     <widget class="QCheckBox" name="chkRotation">
      <property name="text">
-      <string>允许旋转</string>
+      <string>&#20801;&#35768;&#26059;&#36716;</string>
      </property>
      <property name="checked">
       <bool>true</bool>
@@ -178,7 +178,7 @@
    <item row="3" column="4">
     <widget class="QLabel" name="lblRotSteps">
      <property name="text">
-      <string>旋转步数:</string>
+      <string>&#26059;&#36716;&#27493;&#25968;:</string>
      </property>
     </widget>
    </item>
@@ -198,7 +198,7 @@
    <item row="3" column="6">
     <widget class="QCheckBox" name="chkBacktrack">
      <property name="text">
-      <string>回溯</string>
+      <string>&#22238;&#28500;</string>
      </property>
      <property name="checked">
       <bool>true</bool>
@@ -208,7 +208,7 @@
    <item row="3" column="7">
     <widget class="QCheckBox" name="chkBLF">
      <property name="text">
-      <string>空隙填充</string>
+      <string>&#31354;&#38553;&#22635;&#20805;</string>
      </property>
      <property name="checked">
       <bool>true</bool>
@@ -218,7 +218,7 @@
    <item row="3" column="8">
     <widget class="QCheckBox" name="chkSA">
      <property name="text">
-      <string>退火优化</string>
+      <string>&#36864;&#28779;&#20248;&#21270;</string>
      </property>
      <property name="checked">
       <bool>true</bool>
@@ -228,7 +228,7 @@
    <item row="3" column="9">
     <widget class="QLabel" name="lblUtilization">
      <property name="text">
-      <string>利用率: --</string>
+      <string>&#21033;&#29992;&#29575;: --</string>
      </property>
     </widget>
    </item>

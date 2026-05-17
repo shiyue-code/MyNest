@@ -126,7 +126,7 @@ private:
 NestWindow::NestWindow(QWidget* parent)
     : QDialog(parent)
 {
-    setWindowTitle(QString::fromUtf8("排版结果"));
+    setWindowTitle(QString::fromWCharArray(L"\u6392\u7248\u7ED3\u679C"));
     resize(800, 600);
 
     view = new NestView(this);
@@ -144,7 +144,7 @@ void NestWindow::setNestResult(const Polyline& stock,
                                double utilization)
 {
     view->setData(stock, placed, utilization);
-    lblInfo->setText(QString::fromUtf8("  排版件数: %1 | 利用率: %2% | 双击重置视图")
+    lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4EF6\u6570: %1 | \u5229\u7528\u7387: %2% | \u53CC\u51FB\u91CD\u7F6E\u89C6\u56FE")
                      .arg(placed.size())
                      .arg(utilization, 0, 'f', 1));
 }
@@ -152,7 +152,7 @@ void NestWindow::setNestResult(const Polyline& stock,
 void NestWindow::beginNest(const Polyline& stock)
 {
     view->beginNest(stock);
-    lblInfo->setText(QString::fromUtf8("  排版中..."));
+    lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4E2D..."));
     show();
     raise();
     activateWindow();
@@ -161,7 +161,7 @@ void NestWindow::beginNest(const Polyline& stock)
 void NestWindow::addPlacedPiece(const Polyline& piece, double utilization)
 {
     view->addPiece(piece, utilization);
-    lblInfo->setText(QString::fromUtf8("  排版中... 已放置 %1 件 | 利用率: %2%")
+    lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4E2D... \u5DF2\u653E\u7F6E %1 \u4EF6 | \u5229\u7528\u7387: %2%")
                      .arg(view->placedSize())
                      .arg(utilization, 0, 'f', 1));
     QCoreApplication::processEvents();
@@ -169,7 +169,7 @@ void NestWindow::addPlacedPiece(const Polyline& piece, double utilization)
 
 void NestWindow::endNest()
 {
-    lblInfo->setText(QString::fromUtf8("  排版完成 | 件数: %1 | 利用率: %2% | 双击重置视图")
+    lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u5B8C\u6210 | \u4EF6\u6570: %1 | \u5229\u7528\u7387: %2% | \u53CC\u51FB\u91CD\u7F6E\u89C6\u56FE")
                      .arg(view->placedSize())
                      .arg(view->utilizationValue(), 0, 'f', 1));
 }

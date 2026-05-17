@@ -80,18 +80,90 @@ static bool ptInside(const NestPoint& pt, const NestPoly& poly)
     return (c & 1) != 0;
 }
 
-static bool isOutsideAllNfps(const NestPoint& pt, const std::vector<NestPoly>& nfps)
+struct NfpGroup {
+    std::vector<NestPoly> outers;
+    std::vector<NestPoly> holes;
+};
+
+static double signedArea2x(const NestPoly& poly)
+{
+    double area = 0;
+    size_t n = poly.size();
+    for (size_t i = 0; i < n; ++i) {
+        const auto& a = poly[i];
+        const auto& b = poly[(i + 1) % n];
+        area += a.x * b.y - b.x * a.y;
+    }
+    return area;
+}
+
+static std::vector<NfpGroup> computeNfpsForMoving(const NestPoly& moving,
+                                                   const std::vector<Nester::Placement>& placed,
+                                                   int /*method*/)
+{
+    std::vector<NfpGroup> result;
+    for (const auto& p : placed) {
+        NestPoly fixed = p.polygon;
+        fixed.translate(p.offset);
+        NfpPlacer placer(fixed, moving);
+        placer.execMinkowski();
+        auto nfps = placer.getNFPs();
+
+        NfpGroup group;
+        for (const auto& nfp : nfps) {
+            if (nfp.size() < 3) continue;
+            double a2x = signedArea2x(nfp);
+            if (a2x > 0)
+                group.outers.push_back(nfp);
+            else if (a2x < 0)
+                group.holes.push_back(nfp);
+        }
+        if (!group.outers.empty())
+            result.push_back(std::move(group));
+    }
+    return result;
+}
+
+static bool isOutsideAllNfps(const NestPoint& pt, const std::vector<NfpGroup>& nfpGroups)
 {
     ClipperLib::IntPoint cp;
     cp.X = static_cast<ClipperLib::cInt>(std::llround(pt.x * clipperScaler));
     cp.Y = static_cast<ClipperLib::cInt>(std::llround(pt.y * clipperScaler));
-    for (const auto& nfp : nfps) {
-        if (nfp.size() < 3) continue;
-        ClipperLib::Path path = polygon2Path(nfp);
-        if (ClipperLib::PointInPolygon(cp, path) == 1)
+
+    for (const auto& group : nfpGroups) {
+        bool insideOuter = false;
+        for (const auto& outer : group.outers) {
+            ClipperLib::Path path = polygon2Path(outer);
+            if (ClipperLib::PointInPolygon(cp, path) == 1) {
+                insideOuter = true;
+                break;
+            }
+        }
+        if (!insideOuter) continue;
+
+        bool insideHole = false;
+        for (const auto& hole : group.holes) {
+            ClipperLib::Path path = polygon2Path(hole);
+            if (ClipperLib::PointInPolygon(cp, path) == 1) {
+                insideHole = true;
+                break;
+            }
+        }
+
+        if (insideOuter && !insideHole)
             return false;
     }
     return true;
+}
+
+static std::vector<NestPoly> flattenNfpGroups(const std::vector<NfpGroup>& groups)
+{
+    std::vector<NestPoly> result;
+    for (const auto& g : groups) {
+        for (const auto& o : g.outers) result.push_back(o);
+        for (const auto& h : g.holes) result.push_back(h);
+    }
+    return result;
 }
 
 bool Nester::isInsideStock(const Polyline& poly, const Point& offset) const
@@ -139,24 +211,6 @@ void Nester::sortByComplexity(std::vector<int>& indices) const
         double concB = concavityMeasure(polygons[b]);
         return areaA * (1.0 + concA) > areaB * (1.0 + concB);
     });
-}
-
-static std::vector<NestPoly> computeNfpsForMoving(const NestPoly& moving,
-                                                   const std::vector<Nester::Placement>& placed,
-                                                   int /*method*/)
-{
-    std::vector<NestPoly> result;
-    for (const auto& p : placed) {
-        NestPoly fixed = p.polygon;
-        fixed.translate(p.offset);
-        NfpPlacer placer(fixed, moving);
-        placer.execMinkowski();
-        auto nfps = placer.getNFPs();
-        for (const auto& nfp : nfps)
-            if (nfp.size() >= 3)
-                result.push_back(nfp);
-    }
-    return result;
 }
 
 static std::vector<NestPoint> getNfpVertices(const NestPoly& fixed, const NestPoly& moving, int /*method*/)
@@ -273,7 +327,7 @@ double Nester::computePlacedArea(const std::vector<Placement>& placed) const
 }
 
 static NestPoint blSlide(const NestPoly& poly, NestPoint pos,
-                         const std::vector<NestPoly>& nfps,
+                         const std::vector<NfpGroup>& nfpGroups,
                          double stockW, double stockH)
 {
     Box2D bbox = calcBoundingBox(poly);
@@ -291,7 +345,7 @@ static NestPoint blSlide(const NestPoly& poly, NestPoint pos,
                 NestPoint cand = {pos.x + dx, pos.y + dy};
                 if (cand.x < -EPS || cand.y < -EPS) continue;
                 if (cand.x > stockW + EPS || cand.y > stockH + EPS) continue;
-                if (!isOutsideAllNfps(cand, nfps)) continue;
+                if (!isOutsideAllNfps(cand, nfpGroups)) continue;
                 if (cand.y < best.y - EPS || (std::fabs(cand.y - best.y) < EPS && cand.x < best.x)) {
                     best = cand;
                     improved = true;
@@ -314,6 +368,7 @@ Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot
         rotated.rotate(rot);
 
     auto nfps = computeNfpsForMoving(rotated, placed, config.nfpMethod);
+    auto flatNfps = flattenNfpGroups(nfps);
 
     std::vector<NestPoint> candidates;
     candidates.push_back({0, 0});
@@ -329,7 +384,7 @@ Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot
     double pw = bb.width();
     double ph = bb.height();
     double nfpStep = std::max(5.0, std::min(pw, ph) * 0.3);
-    auto nfpSamples = sampleNfpBoundary(nfps, nfpStep);
+    auto nfpSamples = sampleNfpBoundary(flatNfps, nfpStep);
     candidates.insert(candidates.end(), nfpSamples.begin(), nfpSamples.end());
 
     ScoredPosition bestSP;
@@ -430,6 +485,7 @@ bool Nester::backtrackPlace(std::vector<int>& order, int depth, std::vector<Plac
             rotated.rotate(rot);
 
         auto nfps = computeNfpsForMoving(rotated, result, config.nfpMethod);
+        auto flatNfps = flattenNfpGroups(nfps);
 
         std::vector<NestPoint> candidates;
         candidates.push_back({0, 0});
@@ -442,7 +498,7 @@ bool Nester::backtrackPlace(std::vector<int>& order, int depth, std::vector<Plac
 
         Box2D bb = calcBoundingBox(rotated);
         double nfpStep = std::max(5.0, std::min(bb.width(), bb.height()) * 0.3);
-        auto nfpSamples = sampleNfpBoundary(nfps, nfpStep);
+        auto nfpSamples = sampleNfpBoundary(flatNfps, nfpStep);
         candidates.insert(candidates.end(), nfpSamples.begin(), nfpSamples.end());
 
         for (auto& cand : candidates) {
