@@ -433,19 +433,25 @@ Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot
     auto nfps = computeNfpsForMoving(rotated, placed, config.nfpMethod);
     auto flatNfps = flattenNfpGroups(nfps);
 
+    Box2D bb = calcBoundingBox(rotated);
+    double pw = bb.width();
+    double ph = bb.height();
+
     std::vector<NestPoint> candidates;
     candidates.push_back({0, 0});
+    candidates.push_back({-bb.left(), -bb.top()});
 
+    NestPoint refOff = rotated[0];
     for (const auto& p : placed) {
         NestPoly fixed = p.polygon;
         fixed.translate(p.offset);
         auto nfpC = getNfpVertices(fixed, rotated, config.nfpMethod);
+        for (auto& v : nfpC) {
+            v.x -= refOff.x;
+            v.y -= refOff.y;
+        }
         candidates.insert(candidates.end(), nfpC.begin(), nfpC.end());
     }
-
-    Box2D bb = calcBoundingBox(rotated);
-    double pw = bb.width();
-    double ph = bb.height();
     double nfpStep = std::max(5.0, std::min(pw, ph) * 0.3);
     auto nfpSamples = sampleNfpBoundary(flatNfps, nfpStep);
     candidates.insert(candidates.end(), nfpSamples.begin(), nfpSamples.end());
@@ -458,6 +464,9 @@ Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot
     for (auto& cand : candidates) {
         if (!isInsideStock(rotated, cand)) continue;
         if (!isOutsideAllNfps(cand, nfps)) continue;
+        NestPoly testOverlap = rotated;
+        testOverlap.translate(cand);
+        if (overlapsAnyPlaced(testOverlap, placed)) continue;
         validCands.push_back(cand);
     }
 
@@ -469,8 +478,22 @@ Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot
     }
     std::vector<Polyline> nfpPolys;
     for (auto& g : nfps) {
-        for (auto& o : g.outers) nfpPolys.push_back(o);
-        for (auto& h : g.holes) nfpPolys.push_back(h);
+        for (auto& o : g.outers) {
+            Polyline po = o;
+            for (auto& pt : po) {
+                pt.x += refOff.x;
+                pt.y += refOff.y;
+            }
+            nfpPolys.push_back(po);
+        }
+        for (auto& h : g.holes) {
+            Polyline ph = h;
+            for (auto& pt : ph) {
+                pt.x += refOff.x;
+                pt.y += refOff.y;
+            }
+            nfpPolys.push_back(ph);
+        }
     }
 
     bestSP.candidatePolys = candPolys;
@@ -487,6 +510,9 @@ Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot
             NestPoint finalPos = blSlide(rotated, validCands[i], nfps, config.stockWidth, config.stockHeight);
             if (!isInsideStock(rotated, finalPos)) continue;
             if (!isOutsideAllNfps(finalPos, nfps)) continue;
+            NestPoly slideOverlap = rotated;
+            slideOverlap.translate(finalPos);
+            if (overlapsAnyPlaced(slideOverlap, placed)) continue;
             ScoredPosition sp = evaluatePosition(rotated, finalPos, rot, placed);
             if (sp.score < bestSP.score) {
                 bestSP.pos = sp.pos;
@@ -569,10 +595,19 @@ bool Nester::backtrackPlace(std::vector<int>& order, int depth, std::vector<Plac
 
         std::vector<NestPoint> candidates;
         candidates.push_back({0, 0});
+        {
+            Box2D bb = calcBoundingBox(rotated);
+            candidates.push_back({-bb.left(), -bb.top()});
+        }
+        NestPoint refOff = rotated[0];
         for (const auto& p : result) {
             NestPoly fixed = p.polygon;
             fixed.translate(p.offset);
             auto nfpC = getNfpVertices(fixed, rotated, config.nfpMethod);
+            for (auto& v : nfpC) {
+                v.x -= refOff.x;
+                v.y -= refOff.y;
+            }
             candidates.insert(candidates.end(), nfpC.begin(), nfpC.end());
         }
 
@@ -584,12 +619,18 @@ bool Nester::backtrackPlace(std::vector<int>& order, int depth, std::vector<Plac
         for (auto& cand : candidates) {
             if (!isInsideStock(rotated, cand)) continue;
             if (!isOutsideAllNfps(cand, nfps)) continue;
+            NestPoly testOverlap = rotated;
+            testOverlap.translate(cand);
+            if (overlapsAnyPlaced(testOverlap, result)) continue;
 
             ScoredPosition sp;
             if (useBL) {
                 NestPoint finalPos = blSlide(rotated, cand, nfps, config.stockWidth, config.stockHeight);
                 if (!isInsideStock(rotated, finalPos)) continue;
                 if (!isOutsideAllNfps(finalPos, nfps)) continue;
+                NestPoly slideOverlap = rotated;
+                slideOverlap.translate(finalPos);
+                if (overlapsAnyPlaced(slideOverlap, result)) continue;
                 sp = evaluatePosition(rotated, finalPos, rot, result);
             } else {
                 sp = evaluatePosition(rotated, cand, rot, result);
@@ -654,10 +695,19 @@ void Nester::simulatedAnnealing(std::vector<Placement>& currentPlacements, int i
 
             std::vector<NestPoint> candidates;
             candidates.push_back({0, 0});
+            {
+                Box2D bb = calcBoundingBox(poly);
+                candidates.push_back({-bb.left(), -bb.top()});
+            }
+            NestPoint refOff = poly[0];
             for (const auto& rp : rebuilt) {
                 NestPoly fixed = rp.polygon;
                 fixed.translate(rp.offset);
                 auto nfpC = getNfpVertices(fixed, poly, config.nfpMethod);
+                for (auto& v : nfpC) {
+                    v.x -= refOff.x;
+                    v.y -= refOff.y;
+                }
                 candidates.insert(candidates.end(), nfpC.begin(), nfpC.end());
             }
 
@@ -666,6 +716,9 @@ void Nester::simulatedAnnealing(std::vector<Placement>& currentPlacements, int i
             for (auto& cand : candidates) {
                 if (!isInsideStock(poly, cand)) continue;
                 if (!isOutsideAllNfps(cand, nfps)) continue;
+                NestPoly testOverlap = poly;
+                testOverlap.translate(cand);
+                if (overlapsAnyPlaced(testOverlap, rebuilt)) continue;
                 ScoredPosition sp = evaluatePosition(poly, cand, p.rotation, rebuilt);
                 if (sp.score < bestPosScore) {
                     bestPosScore = sp.score;
@@ -791,6 +844,10 @@ void Nester::execBL()
 
                     auto nfps = computeNfpsForMoving(rotated, placements, config.nfpMethod);
                     if (!isOutsideAllNfps(cand, nfps)) continue;
+
+                    NestPoly testOverlap = rotated;
+                    testOverlap.translate(cand);
+                    if (overlapsAnyPlaced(testOverlap, placements)) continue;
 
                     ScoredPosition sp = evaluatePosition(rotated, cand, rot, placements);
                     if (sp.score < bestGap.score) {
