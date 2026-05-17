@@ -1,0 +1,38 @@
+# Build directories
+build/
+build-*/
+debug/
+release/
+
+# Qt Creator user files
+*.pro.user
+*.pro.user.*
+
+# VS Code
+.vscode/
+
+# Compiled objects
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# Qt generated
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+*.moc
+
+# Qt cache
+*.stash
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Doc (if generated)
+doc/
