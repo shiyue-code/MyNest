@@ -2,6 +2,7 @@
 
 #include <QTime>
 #include <QFile>
+#include <QThread>
 
 #include "shapes/s_point.hpp"
 #include "shapes/s_polyline.hpp"
@@ -12,6 +13,10 @@
 #include "shapes/utiltool.h"
 #include "view/nestwindow.h"
 #include "test.h"
+
+typedef std::vector<S_Shape2D::Polyline2D> PolylineList;
+Q_DECLARE_METATYPE(PolylineList)
+Q_DECLARE_METATYPE(S_Shape2D::Polyline2D)
 
 namespace {
 
@@ -126,9 +131,16 @@ void Widget::onNest()
 
     qDebug() << "Nesting" << p1Count << "x P1 +" << p2Count << "x P2 =" << pieces.size() << "pieces";
 
-    S_Shape2D::Nester nester;
-    nester.setStock(ui->spinStockW->value(), ui->spinStockH->value());
-    nester.setPolygons(pieces);
+    if (nestThread) {
+        nestThread->quit();
+        nestThread->wait();
+        delete nestThread;
+    }
+    delete nester;
+
+    nester = new S_Shape2D::Nester;
+    nester->setStock(ui->spinStockW->value(), ui->spinStockH->value());
+    nester->setPolygons(pieces);
 
     S_Shape2D::Nester::Config cfg;
     cfg.stockWidth = ui->spinStockW->value();
@@ -139,51 +151,75 @@ void Widget::onNest()
     cfg.enableBacktrack = ui->chkBacktrack->isChecked();
     cfg.enableBLF = ui->chkBLF->isChecked();
     cfg.enableSA = ui->chkSA->isChecked();
-    nester.setConfig(cfg);
+    nester->setConfig(cfg);
+
+    qRegisterMetaType<PolylineList>("PolylineList");
+    qRegisterMetaType<S_Shape2D::Polyline2D>("S_Shape2D::Polyline2D");
 
     if (!nestWindow)
         nestWindow = new NestWindow(this);
 
-    auto stockPoly = nester.getStock();
-    nestWindow->beginNest(stockPoly);
+    auto stockPoly = nester->getStock();
+    nestWindow->beginNest(stockPoly, pieces.size(), cfg.enableSA ? cfg.saIterations : 0);
 
-    nester.setStepCallback([this](const std::vector<MyCtrlView::Polyline>& placed,
-                                   const MyCtrlView::Polyline& /*stock*/,
-                                   double utilization, int /*pieceIndex*/) {
+    connect(nester, &S_Shape2D::Nester::stepCompleted,
+            this, [this](const std::vector<MyCtrlView::Polyline>& placed,
+                         const MyCtrlView::Polyline& /*stock*/,
+                         double utilization, int /*pieceIndex*/) {
         if (!placed.empty()) {
             nestWindow->addPlacedPiece(placed.back(), utilization);
         }
-    });
+    }, Qt::QueuedConnection);
 
-    nester.setCandidateCallback([this](const std::vector<MyCtrlView::Polyline>& candidates,
-                                       const std::vector<MyCtrlView::Polyline>& nfps,
-                                       const MyCtrlView::Polyline& currentPiece) {
+    connect(nester, &S_Shape2D::Nester::candidatesReady,
+            this, [this](const std::vector<MyCtrlView::Polyline>& candidates,
+                         const std::vector<MyCtrlView::Polyline>& nfps,
+                         const MyCtrlView::Polyline& currentPiece) {
         nestWindow->showCandidates(candidates, nfps, currentPiece);
+    }, Qt::QueuedConnection);
+
+    connect(nester, &S_Shape2D::Nester::saProgress,
+            this, [this](int iteration, int totalIterations) {
+        nestWindow->setSAProgress(iteration, totalIterations);
+    }, Qt::QueuedConnection);
+
+    connect(nester, &S_Shape2D::Nester::phaseChanged,
+            this, [this](const QString& phase) {
+        nestWindow->setPhase(phase);
+    }, Qt::QueuedConnection);
+
+    connect(nester, &S_Shape2D::Nester::finished,
+            this, [this]() {
+        double util = nester->getUtilization();
+        auto placed = nester->getPlacedPolygons();
+        qDebug() << "Placed" << placed.size() << "pieces, utilization:"
+                 << QString::number(util, 'f', 1) << "%";
+        ui->lblUtilization->setText(QString("利用率: %1%").arg(util, 0, 'f', 1));
+        nestWindow->endNest();
+        nestWindow->show();
+        nestWindow->raise();
+        nestWindow->activateWindow();
+    }, Qt::QueuedConnection);
+
+    bool useBL = (ui->comboNestMethod->currentIndex() == 0);
+
+    nestThread = new QThread;
+    nester->moveToThread(nestThread);
+
+    connect(nestThread, &QThread::started, nester, [this, useBL]() {
+        QTime t;
+        t.start();
+        if (useBL)
+            nester->execBL();
+        else
+            nester->execGreedy();
+        qDebug() << "Nesting took" << t.elapsed() << "ms";
+        emit nester->finished();
     });
 
-    QTime t;
-    t.start();
+    connect(nester, &S_Shape2D::Nester::finished, nestThread, &QThread::quit);
 
-    if (ui->comboNestMethod->currentIndex() == 0) {
-        nester.execBL();
-    } else {
-        nester.execGreedy();
-    }
-
-    qDebug() << "Nesting took" << t.elapsed() << "ms";
-
-    auto placed = nester.getPlacedPolygons();
-    double util = nester.getUtilization();
-
-    qDebug() << "Placed" << placed.size() << "pieces, utilization:"
-             << QString::number(util, 'f', 1) << "%";
-
-    ui->lblUtilization->setText(QString("利用率: %1%").arg(util, 0, 'f', 1));
-
-    nestWindow->endNest();
-    nestWindow->show();
-    nestWindow->raise();
-    nestWindow->activateWindow();
+    nestThread->start();
 }
 
 void Widget::onTimer()

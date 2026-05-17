@@ -198,16 +198,30 @@ NestWindow::NestWindow(QWidget* parent)
     lblInfo = new QLabel(this);
     lblInfo->setStyleSheet("color: white; background: #333; padding: 4px;");
 
+    progressBar = new QProgressBar(this);
+    progressBar->setStyleSheet(
+        "QProgressBar { background: #222; border: 1px solid #555; height: 20px; text-align: center; color: white; }"
+        "QProgressBar::chunk { background: #4CAF50; }");
+    progressBar->setTextVisible(true);
+
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
     layout->addWidget(view, 1);
     layout->addWidget(lblInfo, 0);
+    layout->addWidget(progressBar, 0);
 }
 
-void NestWindow::beginNest(const Polyline& stock)
+void NestWindow::beginNest(const Polyline& stock, int totalPieces, int saIterations)
 {
+    this->totalPieces = totalPieces;
+    this->saIterations = saIterations;
+    this->placedCount = 0;
     view->beginNest(stock);
-    lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4E2D..."));
+    lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4E2D... \u653E\u7F6E\u9636\u6BB5"));
+    progressBar->setRange(0, 1000);
+    progressBar->setValue(0);
+    progressBar->setFormat(QString::fromWCharArray(L"\u653E\u7F6E\u4E2D... %p%"));
     show();
     raise();
     activateWindow();
@@ -216,9 +230,23 @@ void NestWindow::beginNest(const Polyline& stock)
 void NestWindow::addPlacedPiece(const Polyline& piece, double utilization)
 {
     view->addPiece(piece, utilization);
-    lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4E2D... \u5DF2\u653E\u7F6E %1 \u4EF6 | \u5229\u7528\u7387: %2%")
-                     .arg(view->placedSize())
-                     .arg(utilization, 0, 'f', 1));
+    placedCount++;
+    if (currentPhase == Placing) {
+        int base = (totalPieces > 0) ? (placedCount * 600 / totalPieces) : 0;
+        progressBar->setValue(qMin(base, 600));
+        progressBar->setFormat(QString::fromWCharArray(L"\u653E\u7F6E\u4E2D... %p%"));
+        lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4E2D... \u5DF2\u653E\u7F6E %1/%2 | \u5229\u7528\u7387: %3%")
+                         .arg(placedCount)
+                         .arg(totalPieces)
+                         .arg(utilization, 0, 'f', 1));
+    } else if (currentPhase == BLF) {
+        int base = 600 + (placedCount * 150 / (totalPieces > 0 ? totalPieces : 1));
+        progressBar->setValue(qMin(base, 750));
+        progressBar->setFormat(QString::fromWCharArray(L"BLF\u586B\u5145\u4E2D... %p%"));
+        lblInfo->setText(QString::fromWCharArray(L"  BLF\u586B\u5145... \u5DF2\u653E\u7F6E %1 | \u5229\u7528\u7387: %2%")
+                         .arg(placedCount)
+                         .arg(utilization, 0, 'f', 1));
+    }
     QCoreApplication::processEvents();
 }
 
@@ -230,9 +258,31 @@ void NestWindow::showCandidates(const std::vector<Polyline>& candidates,
     QCoreApplication::processEvents();
 }
 
+void NestWindow::setSAProgress(int iteration, int totalIterations)
+{
+    int saBase = 750;
+    int saRange = 250;
+    int saProgress = (totalIterations > 0) ? (iteration * saRange / totalIterations) : 0;
+    progressBar->setValue(saBase + saProgress);
+    progressBar->setFormat(QString::fromWCharArray(L"SA\u4F18\u5316\u4E2D... %p%"));
+}
+
+void NestWindow::setPhase(const QString& phase)
+{
+    lblInfo->setText(phase);
+    if (phase.contains(QString::fromWCharArray(L"BLF")))
+        currentPhase = BLF;
+    else if (phase.contains(QString::fromWCharArray(L"SA")))
+        currentPhase = SA;
+    else
+        currentPhase = Placing;
+}
+
 void NestWindow::endNest()
 {
     view->showCandidates({}, {}, {});
+    progressBar->setValue(1000);
+    progressBar->setFormat(QString::fromWCharArray(L"\u5B8C\u6210"));
     lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u5B8C\u6210 | \u4EF6\u6570: %1 | \u5229\u7528\u7387: %2% | \u53CC\u51FB\u91CD\u7F6E\u89C6\u56FE")
                      .arg(view->placedSize())
                      .arg(view->utilizationValue(), 0, 'f', 1));

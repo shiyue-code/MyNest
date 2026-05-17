@@ -3,6 +3,7 @@
 
 #include "nfpplacer.h"
 #include "shapes/s_box.hpp"
+#include <QObject>
 #include <vector>
 #include <functional>
 #include <random>
@@ -10,7 +11,9 @@
 
 namespace S_Shape2D {
 
-class Nester {
+class Nester : public QObject {
+    Q_OBJECT
+
 public:
     using Polyline = S_Polyline2D;
     using Point = Polyline::Point;
@@ -35,22 +38,11 @@ public:
         int saIterations = 500;
     };
 
-    using StepCallback = std::function<void(const std::vector<Polyline>& placed,
-                                            const Polyline& stock,
-                                            double utilization,
-                                            int pieceIndex)>;
-
-    using CandidateCallback = std::function<void(const std::vector<Polyline>& candidates,
-                                                 const std::vector<Polyline>& nfps,
-                                                 const Polyline& currentPiece)>;
-
-    Nester() = default;
+    explicit Nester(QObject* parent = nullptr);
 
     void setStock(double width, double height);
     void setPolygons(const std::vector<Polyline>& polys);
     void setConfig(const Config& cfg);
-    void setStepCallback(StepCallback cb);
-    void setCandidateCallback(CandidateCallback cb);
 
     void execBL();
     void execGreedy();
@@ -59,6 +51,18 @@ public:
     std::vector<Polyline> getPlacedPolygons() const;
     Polyline getStock() const;
     double getUtilization() const;
+
+signals:
+    void stepCompleted(const std::vector<Polyline>& placed,
+                       const Polyline& stock,
+                       double utilization,
+                       int pieceIndex);
+    void candidatesReady(const std::vector<Polyline>& candidates,
+                         const std::vector<Polyline>& nfps,
+                         const Polyline& currentPiece);
+    void saProgress(int iteration, int totalIterations);
+    void phaseChanged(const QString& phase);
+    void finished();
 
 private:
     struct ScoredPosition {
@@ -92,18 +96,11 @@ private:
     std::vector<Point> blfFill(const Polyline& poly, const std::vector<Placement>& placed) const;
     bool backtrackPlace(std::vector<int>& order, int depth, std::vector<Placement>& result,
                         bool useBL);
-    void simulatedAnnealing(std::vector<Placement>& placements, int iterations) const;
-
-    void notifyStep(int pieceIndex);
-    void notifyCandidates(const std::vector<Polyline>& candidates,
-                          const std::vector<Polyline>& nfps,
-                          const Polyline& currentPiece);
+    void simulatedAnnealing(std::vector<Placement>& placements, int iterations);
 
     std::vector<Polyline> polygons;
     std::vector<Placement> placements;
     Config config;
-    StepCallback stepCallback;
-    CandidateCallback candidateCallback;
     mutable std::mt19937 rng{std::random_device{}()};
 };
 
