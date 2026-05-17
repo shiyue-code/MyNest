@@ -890,15 +890,53 @@ void Nester::execGreedy()
 
     qDebug() << "Greedy sorted:" << indices << "rotation steps:" << config.rotationSteps;
 
-    if (config.enableBacktrack) {
-        std::vector<int> order = indices;
-        std::vector<Placement> result;
-        if (backtrackPlace(order, 0, result, false)) {
-            placements = result;
-            for (size_t i = 0; i < placements.size(); ++i)
-                notifyStep((int)i);
+    for (int idx : indices) {
+        Polyline poly = polygons[idx];
+        cleanPolygon(poly);
+        if (poly.size() < 3) continue;
+        if (poly.orientation() == Polyline::Clockwise)
+            poly.reverse();
+
+        auto rotations = getRotationAngles();
+
+        ScoredPosition bestSP;
+        bestSP.score = 1e18;
+        bool found = false;
+
+        for (double rot : rotations) {
+            ScoredPosition sp = evaluateRotation(poly, rot, placements, false);
+
+            if (!sp.candidatePolys.empty()) {
+                Polyline rotated = poly;
+                if (std::fabs(rot) > 1e-9)
+                    rotated.rotate(rot);
+                notifyCandidates(sp.candidatePolys, sp.nfpPolys, rotated);
+            }
+
+            if (sp.score < bestSP.score) {
+                bestSP = sp;
+                found = true;
+            }
         }
-    } else {
+
+        if (found) {
+            Polyline placedPoly = poly;
+            if (std::fabs(bestSP.rotation) > 1e-9)
+                placedPoly.rotate(bestSP.rotation);
+            placements.push_back({placedPoly, bestSP.pos, bestSP.rotation});
+
+            double util = getUtilization();
+            qDebug() << "Greedy placed" << idx << "at" << bestSP.pos.x << bestSP.pos.y
+                     << "rot" << (bestSP.rotation * 180 / M_PI)
+                     << "| util:" << util << "%";
+            notifyStep(idx);
+        } else {
+            qDebug() << "Greedy skipped" << idx;
+        }
+    }
+
+    if (config.enableBLF) {
+        qDebug() << "Greedy BLF gap filling...";
         for (int idx : indices) {
             Polyline poly = polygons[idx];
             cleanPolygon(poly);
@@ -906,41 +944,50 @@ void Nester::execGreedy()
             if (poly.orientation() == Polyline::Clockwise)
                 poly.reverse();
 
-            auto rotations = getRotationAngles();
+            bool inPlaced = false;
+            for (size_t pi = 0; pi < placements.size(); ++pi) {
+                if (std::fabs(placements[pi].polygon.area() - poly.area()) < 1e-6 &&
+                    placements[pi].polygon.size() == poly.size()) {
+                    inPlaced = true;
+                    break;
+                }
+            }
+            if (inPlaced) continue;
 
-            ScoredPosition bestSP;
-            bestSP.score = 1e18;
-            bool found = false;
+            auto gapCands = blfFill(poly, placements);
+            ScoredPosition bestGap;
+            bestGap.score = 1e18;
+            bool gapFound = false;
 
-            for (double rot : rotations) {
-                ScoredPosition sp = evaluateRotation(poly, rot, placements, false);
-
-                if (!sp.candidatePolys.empty()) {
-                    Polyline rotated = poly;
+            for (auto& cand : gapCands) {
+                for (double rot : {0.0, M_PI / 2, M_PI, 3 * M_PI / 2}) {
+                    NestPoly rotated = poly;
                     if (std::fabs(rot) > 1e-9)
                         rotated.rotate(rot);
-                    notifyCandidates(sp.candidatePolys, sp.nfpPolys, rotated);
-                }
+                    if (!isInsideStock(rotated, cand)) continue;
 
-                if (sp.score < bestSP.score) {
-                    bestSP = sp;
-                    found = true;
+                    auto nfps = computeNfpsForMoving(rotated, placements, config.nfpMethod);
+                    if (!isOutsideAllNfps(cand, nfps)) continue;
+
+                    NestPoly testOverlap = rotated;
+                    testOverlap.translate(cand);
+                    if (overlapsAnyPlaced(testOverlap, placements)) continue;
+
+                    ScoredPosition sp = evaluatePosition(rotated, cand, rot, placements);
+                    if (sp.score < bestGap.score) {
+                        bestGap = sp;
+                        gapFound = true;
+                    }
                 }
             }
 
-            if (found) {
+            if (gapFound) {
                 Polyline placedPoly = poly;
-                if (std::fabs(bestSP.rotation) > 1e-9)
-                    placedPoly.rotate(bestSP.rotation);
-                placements.push_back({placedPoly, bestSP.pos, bestSP.rotation});
-
-                double util = getUtilization();
-                qDebug() << "Greedy placed" << idx << "at" << bestSP.pos.x << bestSP.pos.y
-                         << "rot" << (bestSP.rotation * 180 / M_PI)
-                         << "| util:" << util << "%";
+                if (std::fabs(bestGap.rotation) > 1e-9)
+                    placedPoly.rotate(bestGap.rotation);
+                placements.push_back({placedPoly, bestGap.pos, bestGap.rotation});
+                qDebug() << "Greedy BLF filled" << idx << "at" << bestGap.pos.x << bestGap.pos.y;
                 notifyStep(idx);
-            } else {
-                qDebug() << "Greedy skipped" << idx;
             }
         }
     }
