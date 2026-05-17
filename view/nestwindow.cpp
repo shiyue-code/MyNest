@@ -15,17 +15,12 @@ public:
 
     NestView(QWidget* parent = nullptr) : KWCtrlView(parent) {}
 
-    void setData(const Polyline& stock, const std::vector<Polyline>& placed, double util) {
-        this->stock = stock;
-        this->placed = placed;
-        this->utilization = util;
-        ResetView();
-        update();
-    }
-
     void beginNest(const Polyline& stock) {
         this->stock = stock;
         this->placed.clear();
+        this->candidates.clear();
+        this->nfps.clear();
+        this->currentPiece.clear();
         this->utilization = 0;
         ResetView();
         update();
@@ -33,7 +28,19 @@ public:
 
     void addPiece(const Polyline& piece, double util) {
         this->placed.push_back(piece);
+        this->candidates.clear();
+        this->nfps.clear();
+        this->currentPiece.clear();
         this->utilization = util;
+        update();
+    }
+
+    void showCandidates(const std::vector<Polyline>& cands,
+                        const std::vector<Polyline>& nfpRings,
+                        const Polyline& piece) {
+        this->candidates = cands;
+        this->nfps = nfpRings;
+        this->currentPiece = piece;
         update();
     }
 
@@ -47,6 +54,10 @@ public:
                 box.append(pt);
         }
         for (const auto& poly : placed) {
+            for (const auto& pt : poly)
+                box.append(pt);
+        }
+        for (const auto& poly : candidates) {
             for (const auto& pt : poly)
                 box.append(pt);
         }
@@ -109,17 +120,71 @@ protected:
             glEnd();
         }
 
+        if (!nfps.empty()) {
+            glColor3f(0.4f, 0.4f, 0.4f);
+            glLineWidth(1.0f);
+            glLineStipple(1, 0x00FF);
+            glEnable(GL_LINE_STIPPLE);
+            for (const auto& nfp : nfps) {
+                glBegin(GL_LINE_LOOP);
+                for (const auto& pt : nfp)
+                    glVertex2d(pt.x, pt.y);
+                glEnd();
+            }
+            glDisable(GL_LINE_STIPPLE);
+        }
+
+        if (!candidates.empty()) {
+            glColor3f(0.3f, 0.6f, 0.3f);
+            glPointSize(3);
+            glBegin(GL_POINTS);
+            for (const auto& cand : candidates) {
+                if (!cand.empty())
+                    glVertex2d(cand[0].x, cand[0].y);
+            }
+            glEnd();
+
+            for (const auto& cand : candidates) {
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                glBegin(GL_LINE_LOOP);
+                for (const auto& pt : cand)
+                    glVertex2d(pt.x, pt.y);
+                glEnd();
+            }
+        }
+
+        if (!currentPiece.empty()) {
+            glColor3f(1.0f, 0.0f, 0.0f);
+            glPointSize(6);
+            glBegin(GL_POINTS);
+            glVertex2d(currentPiece[0].x, currentPiece[0].y);
+            glEnd();
+
+            glLineWidth(2.0f);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            glBegin(GL_POLYGON);
+            for (const auto& pt : currentPiece)
+                glVertex2d(pt.x, pt.y);
+            glEnd();
+        }
+
         painter.save();
         painter.setPen(Qt::white);
-        painter.drawText(10, 20, QString("Pieces: %1  Utilization: %2%")
-                         .arg(placed.size())
-                         .arg(utilization, 0, 'f', 1));
+        QString info = QString("Pieces: %1  Utilization: %2%")
+                       .arg(placed.size())
+                       .arg(utilization, 0, 'f', 1);
+        if (!candidates.empty())
+            info += QString("  Candidates: %1").arg(candidates.size());
+        painter.drawText(10, 20, info);
         painter.restore();
     }
 
 private:
     Polyline stock;
     std::vector<Polyline> placed;
+    std::vector<Polyline> candidates;
+    std::vector<Polyline> nfps;
+    Polyline currentPiece;
     double utilization = 0;
 };
 
@@ -137,16 +202,6 @@ NestWindow::NestWindow(QWidget* parent)
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(view, 1);
     layout->addWidget(lblInfo, 0);
-}
-
-void NestWindow::setNestResult(const Polyline& stock,
-                               const std::vector<Polyline>& placed,
-                               double utilization)
-{
-    view->setData(stock, placed, utilization);
-    lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4EF6\u6570: %1 | \u5229\u7528\u7387: %2% | \u53CC\u51FB\u91CD\u7F6E\u89C6\u56FE")
-                     .arg(placed.size())
-                     .arg(utilization, 0, 'f', 1));
 }
 
 void NestWindow::beginNest(const Polyline& stock)
@@ -167,8 +222,17 @@ void NestWindow::addPlacedPiece(const Polyline& piece, double utilization)
     QCoreApplication::processEvents();
 }
 
+void NestWindow::showCandidates(const std::vector<Polyline>& candidates,
+                                const std::vector<Polyline>& nfps,
+                                const Polyline& currentPiece)
+{
+    view->showCandidates(candidates, nfps, currentPiece);
+    QCoreApplication::processEvents();
+}
+
 void NestWindow::endNest()
 {
+    view->showCandidates({}, {}, {});
     lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u5B8C\u6210 | \u4EF6\u6570: %1 | \u5229\u7528\u7387: %2% | \u53CC\u51FB\u91CD\u7F6E\u89C6\u56FE")
                      .arg(view->placedSize())
                      .arg(view->utilizationValue(), 0, 'f', 1));

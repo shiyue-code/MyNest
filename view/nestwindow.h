@@ -15,12 +15,11 @@ public:
 
     explicit NestWindow(QWidget* parent = nullptr);
 
-    void setNestResult(const Polyline& stock,
-                       const std::vector<Polyline>& placed,
-                       double utilization);
-
     void beginNest(const Polyline& stock);
     void addPlacedPiece(const Polyline& piece, double utilization);
+    void showCandidates(const std::vector<Polyline>& candidates,
+                        const std::vector<Polyline>& nfps,
+                        const Polyline& currentPiece);
     void endNest();
 
 protected:

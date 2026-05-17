@@ -279,15 +279,16 @@ void MyCtrlView::startNfpAnimation()
 {
     animationPath.clear();
     for (const auto& nfp : nfps) {
-        if (nfp.size() >= 2) {
-            for (const auto& pt : nfp) {
+        if (nfp.size() >= 3) {
+            for (const auto& pt : nfp)
                 animationPath.push_back(pt);
-            }
+            if (animationPath.front() != animationPath.back())
+                animationPath.push_back(animationPath.front());
             break;
         }
     }
 
-    if (animationPath.size() < 2 || p2.empty()) {
+    if (animationPath.size() < 4 || p2.empty()) {
         stopNfpAnimation();
         return;
     }
@@ -314,14 +315,15 @@ void MyCtrlView::advanceNfpAnimation()
         return;
 
     double remain = animationStep;
-    while (remain > 0 && animationPath.size() >= 2) {
+    while (remain > 0) {
+        size_t nextIdx = (animationEdgeIndex + 1) % animationPath.size();
         const Point& edgeStart = animationPath[animationEdgeIndex];
-        const Point& edgeEnd = animationPath[(animationEdgeIndex + 1) % animationPath.size()];
+        const Point& edgeEnd = animationPath[nextIdx];
         Point edge = edgeEnd - edgeStart;
         double edgeLength = edge.norm();
 
-        if (isEqual(edgeLength, 0.0)) {
-            animationEdgeIndex = (animationEdgeIndex + 1) % animationPath.size();
+        if (edgeLength < 1e-9) {
+            animationEdgeIndex = nextIdx;
             animationEdgeOffset = 0;
             continue;
         }
@@ -332,20 +334,19 @@ void MyCtrlView::advanceNfpAnimation()
             remain = 0;
         } else {
             remain -= leftOnEdge;
-            animationEdgeIndex = (animationEdgeIndex + 1) % animationPath.size();
+            animationEdgeIndex = nextIdx;
             animationEdgeOffset = 0;
         }
-
-        const Point& curStart = animationPath[animationEdgeIndex];
-        const Point& curEnd = animationPath[(animationEdgeIndex + 1) % animationPath.size()];
-        Point curEdge = curEnd - curStart;
-        double curLength = curEdge.norm();
-        if (!isEqual(curLength, 0.0)) {
-            animationRefPoint = curStart + curEdge * (animationEdgeOffset / curLength);
-        } else {
-            animationRefPoint = curStart;
-        }
     }
+
+    const Point& curStart = animationPath[animationEdgeIndex];
+    const Point& curEnd = animationPath[(animationEdgeIndex + 1) % animationPath.size()];
+    Point curEdge = curEnd - curStart;
+    double curLength = curEdge.norm();
+    if (curLength > 1e-9)
+        animationRefPoint = curStart + curEdge * (animationEdgeOffset / curLength);
+    else
+        animationRefPoint = curStart;
 
     update();
 }

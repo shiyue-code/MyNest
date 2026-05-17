@@ -40,12 +40,17 @@ public:
                                             double utilization,
                                             int pieceIndex)>;
 
+    using CandidateCallback = std::function<void(const std::vector<Polyline>& candidates,
+                                                 const std::vector<Polyline>& nfps,
+                                                 const Polyline& currentPiece)>;
+
     Nester() = default;
 
     void setStock(double width, double height);
     void setPolygons(const std::vector<Polyline>& polys);
     void setConfig(const Config& cfg);
     void setStepCallback(StepCallback cb);
+    void setCandidateCallback(CandidateCallback cb);
 
     void execBL();
     void execGreedy();
@@ -60,6 +65,8 @@ private:
         Point pos;
         double rotation = 0;
         double score = 1e18;
+        std::vector<Polyline> candidatePolys;
+        std::vector<Polyline> nfpPolys;
     };
 
     Polyline buildStockPolyline() const;
@@ -79,20 +86,24 @@ private:
 
     ScoredPosition evaluateRotation(const Polyline& poly, double rot,
                                     const std::vector<Placement>& placed,
-                                    bool useBL) const;
+                                    bool useBL);
 
     std::vector<Point> sampleNfpBoundary(const std::vector<Polyline>& nfps, double step) const;
     std::vector<Point> blfFill(const Polyline& poly, const std::vector<Placement>& placed) const;
     bool backtrackPlace(std::vector<int>& order, int depth, std::vector<Placement>& result,
-                        bool useBL) const;
+                        bool useBL);
     void simulatedAnnealing(std::vector<Placement>& placements, int iterations) const;
 
     void notifyStep(int pieceIndex);
+    void notifyCandidates(const std::vector<Polyline>& candidates,
+                          const std::vector<Polyline>& nfps,
+                          const Polyline& currentPiece);
 
     std::vector<Polyline> polygons;
     std::vector<Placement> placements;
     Config config;
     StepCallback stepCallback;
+    CandidateCallback candidateCallback;
     mutable std::mt19937 rng{std::random_device{}()};
 };
 

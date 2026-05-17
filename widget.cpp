@@ -155,6 +155,12 @@ void Widget::onNest()
         }
     });
 
+    nester.setCandidateCallback([this](const std::vector<MyCtrlView::Polyline>& candidates,
+                                       const std::vector<MyCtrlView::Polyline>& nfps,
+                                       const MyCtrlView::Polyline& currentPiece) {
+        nestWindow->showCandidates(candidates, nfps, currentPiece);
+    });
+
     QTime t;
     t.start();
 
