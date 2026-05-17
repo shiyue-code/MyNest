@@ -18,6 +18,10 @@ SOURCES += \
     main.cpp \
     nest/clipper/clipper.cpp \
     nest/nester.cpp \
+    nest/nester_bl.cpp \
+    nest/nester_eval.cpp \
+    nest/nester_greedy.cpp \
+    nest/nester_sa.cpp \
     nest/nesttools.cpp \
     nest/nfpplacer.cpp \
     nest/nfpplacer_minkowski.cpp \
@@ -40,6 +44,7 @@ HEADERS += \
     actions/s_action.h \
     nest/clipper/clipper.hpp \
     nest/nester.h \
+    nest/nester_common.h \
     nest/nfpplacer_common.h \
     nest/nfpplacer.h \
     s_common.hpp \
