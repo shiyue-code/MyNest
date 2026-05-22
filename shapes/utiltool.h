@@ -16,7 +16,7 @@ constexpr int clipperScaler = 1000000;
 namespace S_Shape2D {
 
 template <typename T>
-static Box<T> calcBoundingBox(const Polyline<T>& path)
+inline Box<T> calcBoundingBox(const Polyline<T>& path)
 {
     Box<T> box;
 
@@ -34,9 +34,8 @@ static Box<T> calcBoundingBox(const Polyline<T>& path)
  */
 
 template <typename T>
-static void cleanPolygon(Polyline<T>& path)
+inline void cleanPolygon(Polyline<T>& path)
 {
-    typename Polyline<T>::Point ptTmp;
     size_t i = 1;
     for (; i < path.size();) {
         if (path[i] == path[i - 1]) {
@@ -48,7 +47,7 @@ static void cleanPolygon(Polyline<T>& path)
 }
 
 template <typename T>
-static Point<T> intersect(const Point<T>& p0, const Point<T>& p1, const Point<T>& p2, const Point<T>& p3)
+inline Point<T> intersect(const Point<T>& p0, const Point<T>& p1, const Point<T>& p2, const Point<T>& p3)
 {
     T d01 = (p1 - p0).cross(p3 - p2);
     T d02 = (p2 - p0).cross(p3 - p2);
@@ -79,7 +78,7 @@ static Point<T> intersect(const Point<T>& p0, const Point<T>& p1, const Point<T>
 
 #ifdef USE_CLIPPER
 template <typename T>
-static ClipperLib::Path polygon2Path(const Polyline<T>& polygon)
+inline ClipperLib::Path polygon2Path(const Polyline<T>& polygon)
 {
     ClipperLib::Path path;
     for (const auto& pt : polygon) {
@@ -91,7 +90,7 @@ static ClipperLib::Path polygon2Path(const Polyline<T>& polygon)
 }
 
 template <typename T>
-static Polyline<T> path2Polygon(const ClipperLib::Path& path)
+inline Polyline<T> path2Polygon(const ClipperLib::Path& path)
 {
     Polyline<T> polygon;
     for (const auto& pt : path) {
@@ -102,7 +101,7 @@ static Polyline<T> path2Polygon(const ClipperLib::Path& path)
     return polygon;
 }
 
-static ClipperLib::Paths Intersection(const ClipperLib::Path& p1, const ClipperLib::Path& p2)
+inline ClipperLib::Paths Intersection(const ClipperLib::Path& p1, const ClipperLib::Path& p2)
 {
     ClipperLib::Clipper clipper;
     clipper.AddPath(p1, ClipperLib::PolyType::ptSubject, true);
@@ -117,7 +116,7 @@ static ClipperLib::Paths Intersection(const ClipperLib::Path& p1, const ClipperL
     return combinedNfp;
 }
 
-static ClipperLib::Paths Union(const ClipperLib::Paths& paths)
+inline ClipperLib::Paths Union(const ClipperLib::Paths& paths)
 {
     ClipperLib::Clipper clipper;
     clipper.AddPaths(paths, ClipperLib::PolyType::ptClip, true);
@@ -130,7 +129,7 @@ static ClipperLib::Paths Union(const ClipperLib::Paths& paths)
     return combinedNfp;
 }
 
-static ClipperLib::Paths Difference(const ClipperLib::Path& p1, const ClipperLib::Path& p2)
+inline ClipperLib::Paths Difference(const ClipperLib::Path& p1, const ClipperLib::Path& p2)
 {
     ClipperLib::Clipper clipper;
     clipper.AddPath(p1, ClipperLib::PolyType::ptSubject, true);

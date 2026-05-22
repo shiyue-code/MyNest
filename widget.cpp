@@ -1,6 +1,6 @@
 ﻿#include "widget.h"
 
-#include <QTime>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QThread>
 
@@ -53,6 +53,15 @@ Widget::Widget(QWidget* parent)
 
 Widget::~Widget()
 {
+    timer.stop();
+    if (nestThread) {
+        nestThread->quit();
+        nestThread->wait();
+        delete nestThread;
+        nestThread = nullptr;
+    }
+    delete nester;
+    nester = nullptr;
     delete ui;
 }
 
@@ -86,7 +95,7 @@ void Widget::onExec()
     debugPrintPolyline("P1", p1);
     debugPrintPolyline("P2", p2);
 
-    QTime t;
+    QElapsedTimer t;
     t.start();
     if (ui->comboNfpMethod->currentIndex() == 0) {
         placer.exec();
@@ -207,7 +216,7 @@ void Widget::onNest()
     nester->moveToThread(nestThread);
 
     connect(nestThread, &QThread::started, nester, [this, useBL]() {
-        QTime t;
+        QElapsedTimer t;
         t.start();
         if (useBL)
             nester->execBL();
@@ -256,7 +265,7 @@ void Widget::OnSave()
     }
 }
 
-void Widget::OnLoad(const QString &absoluteFilePath)
+void Widget::OnLoad(const QString& absoluteFilePath)
 {
     MyCtrlView::Polyline p1, p2;
     QFile file(absoluteFilePath.isNull()?qApp->applicationDirPath()+"/SaveShape.txt":absoluteFilePath);
@@ -276,7 +285,7 @@ void Widget::OnLoad(const QString &absoluteFilePath)
         for(size_t i =0;i<shapeSize;i++)
         {
             stream >> pt.x >> pt.y;
-            p1.insert(pt);
+            p2.insert(pt);
         }
         file.close();
     }
@@ -285,7 +294,5 @@ void Widget::OnLoad(const QString &absoluteFilePath)
         file.close();
         qDebug()<<u8"文件打开的时候出现错误 " << file.errorString();
     }
-    p2 = p1;
-    p2.rotate(1.7);
     ui->openGLWidget->setPolyline(p1, p2);
 }

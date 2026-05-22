@@ -58,19 +58,26 @@ inline bool segsCross(const NestPoint& a0, const NestPoint& a1,
     return t > 1e-9 && t < 1.0 - 1e-9 && u > 1e-9 && u < 1.0 - 1e-9;
 }
 
-inline bool pointStrictlyInside(const NestPoint& pt, const NestPoly& poly)
+inline bool pointStrictlyInside(const NestPoint& pt, const ClipperLib::Path& path)
 {
     ClipperLib::IntPoint cp;
     cp.X = static_cast<ClipperLib::cInt>(std::llround(pt.x * clipperScaler));
     cp.Y = static_cast<ClipperLib::cInt>(std::llround(pt.y * clipperScaler));
-    ClipperLib::Path path = polygon2Path(poly);
     return ClipperLib::PointInPolygon(cp, path) == 1;
+}
+
+inline bool pointStrictlyInside(const NestPoint& pt, const NestPoly& poly)
+{
+    return pointStrictlyInside(pt, polygon2Path(poly));
 }
 
 inline bool polysReallyOverlap(const NestPoly& a, const NestPoly& b)
 {
     size_t na = a.size();
     size_t nb = b.size();
+    ClipperLib::Path pathA = polygon2Path(a);
+    ClipperLib::Path pathB = polygon2Path(b);
+
     for (size_t i = 0; i < na; ++i) {
         NestPoint a0 = a[i];
         NestPoint a1 = a[(i + 1) % na];
@@ -80,22 +87,27 @@ inline bool polysReallyOverlap(const NestPoly& a, const NestPoly& b)
         }
     }
     for (size_t i = 0; i < na; ++i) {
-        if (pointStrictlyInside(a[i], b)) return true;
+        if (pointStrictlyInside(a[i], pathB)) return true;
     }
     for (size_t j = 0; j < nb; ++j) {
-        if (pointStrictlyInside(b[j], a)) return true;
+        if (pointStrictlyInside(b[j], pathA)) return true;
     }
     return false;
+}
+
+inline Box2D translatedBoundingBox(const NestPoly& poly, const NestPoint& offset)
+{
+    Box2D box;
+    for (const auto& pt : poly)
+        box.append(pt + offset);
+    return box;
 }
 
 inline bool overlapsAnyPlaced(const NestPoly& poly, const std::vector<Nester::Placement>& placed)
 {
     Box2D polyBox = calcBoundingBox(poly);
     for (const auto& p : placed) {
-        Box2D placedBox = calcBoundingBox(p.polygon);
-        placedBox.append(p.polygon[0] + p.offset);
-        for (size_t i = 1; i < p.polygon.size(); ++i)
-            placedBox.append(p.polygon[i] + p.offset);
+        Box2D placedBox = translatedBoundingBox(p.polygon, p.offset);
         if (polyBox.right() < placedBox.left() || polyBox.left() > placedBox.right() ||
             polyBox.bottom() < placedBox.top() || polyBox.top() > placedBox.bottom())
             continue;
@@ -109,7 +121,7 @@ inline bool overlapsAnyPlaced(const NestPoly& poly, const std::vector<Nester::Pl
 
 inline std::vector<NfpGroup> computeNfpsForMoving(const NestPoly& moving,
                                                    const std::vector<Nester::Placement>& placed,
-                                                   int /*method*/)
+                                                   int method)
 {
     std::vector<NfpGroup> result;
     NestPoint refOffset = moving[0];
@@ -118,7 +130,17 @@ inline std::vector<NfpGroup> computeNfpsForMoving(const NestPoly& moving,
         NestPoly fixed = p.polygon;
         fixed.translate(p.offset);
         NfpPlacer placer(fixed, moving);
-        placer.execMinkowski();
+        switch (method) {
+        case 0:
+            placer.exec();
+            break;
+        case 1:
+            placer.execVectorSegments();
+            break;
+        default:
+            placer.execMinkowski();
+            break;
+        }
         auto nfps = placer.getNFPs();
 
         NfpGroup group;

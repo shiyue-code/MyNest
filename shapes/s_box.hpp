@@ -38,10 +38,9 @@ public:
     }
 
     Box(const Box<T>& box)
-        : valid(box.valid)
+        : BoxBase(box.p0, box.p1)
+        , valid(box.valid)
     {
-        this->p0 = box.p0;
-        this->p1 = box.p1;
     }
 
     void set(const Point& p0, const Point& p1)

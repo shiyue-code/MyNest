@@ -32,7 +32,7 @@ private slots:
     void onTimer();
 
     void OnSave();
-    void OnLoad(const QString &absoluteFilePath = QString::Null());
+    void OnLoad(const QString& absoluteFilePath = QString());
 
 private:
     Ui::Widget* ui;
