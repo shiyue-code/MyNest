@@ -2,7 +2,7 @@
 #define MYCTRLVIEW_H
 
 #include "kwctrlview.h"
-#include "nest/nfpplacer.h"
+#include "nest/nfp_placer.h"
 
 #include <vector>
 
@@ -26,12 +26,12 @@ public:
     void setMode(int mode);
     void setPointSize(int size);
     void setNFPs(const std::vector<Polyline>& nfp);
-    void setPolyline(const Polyline& p1, const Polyline& p2);
+    void setPolyline(const Polyline& fixed, const Polyline& moving);
     void startNfpAnimation();
     void stopNfpAnimation();
     void advanceNfpAnimation();
 
-    void getPolyline(Polyline& p1, Polyline& p2);
+    void getPolyline(Polyline& fixed, Polyline& moving);
 
     void setNestPoly(const std::vector<Polyline>& np);
     void setNestPoly2(const std::vector<MyCtrlView::Polyline> &np);
@@ -48,10 +48,10 @@ protected:
 private:
     int pointSize = 5;
 
-    Polyline p1;
-    Polyline p2;
+    Polyline fixedPolygon;
+    Polyline movingPolygon;
     std::vector<Polyline> nfps, nestPoly,nestPoly2;
-    Polyline animationBaseP2;
+    Polyline animationBaseMovingPolygon;
     std::vector<Point> animationPath;
     Point animationRefPoint;
     bool animationEnabled = false;

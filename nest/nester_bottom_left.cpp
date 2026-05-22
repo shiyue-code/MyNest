@@ -22,11 +22,17 @@ void Nester::execBL()
     sortByComplexity(indices);
 
     qDebug() << "BL sorted:" << indices << "rotation steps:" << config.rotationSteps;
+    emit phaseChanged(QString::fromWCharArray(L"  \u6392\u7248\u4E2D... \u653E\u7F6E\u9636\u6BB5"));
+    emit placementProgress(0, static_cast<int>(indices.size()));
 
+    int processedPieces = 0;
     for (int idx : indices) {
         Polyline poly = polygons[idx];
         cleanPolygon(poly);
-        if (poly.size() < 3) continue;
+        if (poly.size() < 3) {
+            emit placementProgress(++processedPieces, static_cast<int>(indices.size()));
+            continue;
+        }
         if (poly.orientation() == Polyline::Clockwise)
             poly.reverse();
 
@@ -37,14 +43,7 @@ void Nester::execBL()
         bool found = false;
 
         for (double rot : rotations) {
-            ScoredPosition sp = evaluateRotation(poly, rot, placements, true);
-
-            if (!sp.candidatePolys.empty()) {
-                Polyline rotated = poly;
-                if (std::fabs(rot) > 1e-9)
-                    rotated.rotate(rot);
-                emit candidatesReady(sp.candidatePolys, sp.nfpPolys, rotated);
-            }
+            ScoredPosition sp = evaluateRotation(poly, rot, placements, true, false);
 
             if (sp.score < bestSP.score) {
                 bestSP = sp;
@@ -53,10 +52,18 @@ void Nester::execBL()
         }
 
         if (found) {
+            ScoredPosition previewSP = evaluateRotation(poly, bestSP.rotation, placements, true, true);
+            if (!previewSP.candidatePolys.empty()) {
+                Polyline previewPoly = poly;
+                if (std::fabs(bestSP.rotation) > 1e-9)
+                    previewPoly.rotate(bestSP.rotation);
+                emit candidatesReady(previewSP.candidatePolys, previewSP.nfpPolys, previewPoly);
+            }
+
             Polyline placedPoly = poly;
             if (std::fabs(bestSP.rotation) > 1e-9)
                 placedPoly.rotate(bestSP.rotation);
-            placements.push_back({placedPoly, bestSP.pos, bestSP.rotation});
+            placements.push_back(makePlacement(idx, placedPoly, bestSP.pos, bestSP.rotation));
 
             double util = getUtilization();
             qDebug() << "BL placed" << idx << "at" << bestSP.pos.x << bestSP.pos.y
@@ -66,6 +73,7 @@ void Nester::execBL()
         } else {
             qDebug() << "BL skipped" << idx;
         }
+        emit placementProgress(++processedPieces, static_cast<int>(indices.size()));
     }
 
     if (config.enableBLF) {
@@ -119,7 +127,7 @@ void Nester::execBL()
                 Polyline placedPoly = poly;
                 if (std::fabs(bestGap.rotation) > 1e-9)
                     placedPoly.rotate(bestGap.rotation);
-                placements.push_back({placedPoly, bestGap.pos, bestGap.rotation});
+                placements.push_back(makePlacement(idx, placedPoly, bestGap.pos, bestGap.rotation));
                 qDebug() << "BLF filled" << idx << "at" << bestGap.pos.x << bestGap.pos.y;
                 emit stepCompleted(getPlacedPolygons(), getStock(), getUtilization(), idx);
             }
@@ -221,7 +229,7 @@ bool Nester::backtrackPlace(std::vector<int>& order, int depth, std::vector<Plac
     Polyline placedPoly = poly;
     if (std::fabs(bestSP.rotation) > 1e-9)
         placedPoly.rotate(bestSP.rotation);
-    result.push_back({placedPoly, bestSP.pos, bestSP.rotation});
+    result.push_back(makePlacement(order[depth], placedPoly, bestSP.pos, bestSP.rotation));
 
     return backtrackPlace(order, depth + 1, result, useBL);
 }

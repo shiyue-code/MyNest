@@ -4,19 +4,34 @@
 #include "shapes/utiltool.h"
 
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QCoreApplication>
 #include <QCloseEvent>
+#include <QHeaderView>
 #include <QPainter>
+#include <QPainterPath>
+#include <QTableWidgetItem>
 #include <QOpenGLFunctions>
+
+#include <algorithm>
+#include <cmath>
+#include <map>
 
 class NestWindow::NestView : public KWCtrlView {
 public:
     using Polyline = S_Polyline2D;
+    struct VisualPiece {
+        Polyline polygon;
+        int pieceIndex = -1;
+        QColor color = QColor("#4C78A8");
+        QString label;
+    };
 
     NestView(QWidget* parent = nullptr) : KWCtrlView(parent) {}
 
-    void beginNest(const Polyline& stock) {
+    void beginNest(const Polyline& stock, const S_Shape2D::NestScene& scene) {
         this->stock = stock;
+        this->scene = scene;
         this->placed.clear();
         this->candidates.clear();
         this->nfps.clear();
@@ -26,12 +41,37 @@ public:
         update();
     }
 
-    void addPiece(const Polyline& piece, double util) {
-        this->placed.push_back(piece);
+    void addPiece(const Polyline& piece, int pieceIndex, double util) {
+        VisualPiece visual;
+        visual.polygon = piece;
+        visual.pieceIndex = pieceIndex;
+        visual.color = colorForPiece(pieceIndex);
+        visual.label = labelForPiece(pieceIndex);
+        this->placed.push_back(visual);
         this->candidates.clear();
         this->nfps.clear();
         this->currentPiece.clear();
         this->utilization = util;
+        update();
+    }
+
+    void setPieces(const std::vector<Polyline>& pieces, double util) {
+        std::vector<int> previousPieceIndices;
+        previousPieceIndices.reserve(placed.size());
+        for (const auto& piece : placed)
+            previousPieceIndices.push_back(piece.pieceIndex);
+
+        placed.clear();
+        for (int i = 0; i < static_cast<int>(pieces.size()); ++i) {
+            int pieceIndex = (i < static_cast<int>(previousPieceIndices.size())) ? previousPieceIndices[i] : i;
+            VisualPiece visual;
+            visual.polygon = pieces[i];
+            visual.pieceIndex = pieceIndex;
+            visual.color = colorForPiece(pieceIndex);
+            visual.label = labelForPiece(pieceIndex);
+            placed.push_back(visual);
+        }
+        utilization = util;
         update();
     }
 
@@ -53,8 +93,8 @@ public:
             for (const auto& pt : stock)
                 box.append(pt);
         }
-        for (const auto& poly : placed) {
-            for (const auto& pt : poly)
+        for (const auto& visual : placed) {
+            for (const auto& pt : visual.polygon)
                 box.append(pt);
         }
         for (const auto& poly : candidates) {
@@ -89,86 +129,53 @@ public:
 
 protected:
     void DrawGLSence(QPainter& painter) override {
+        painter.save();
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
         if (!stock.empty()) {
-            glColor3f(1.0f, 1.0f, 0.0f);
-            glLineWidth(2.0f);
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            glBegin(GL_POLYGON);
-            for (const auto& pt : stock)
-                glVertex2d(pt.x, pt.y);
-            glEnd();
+            drawPolygon(painter, stock, QColor(230, 232, 235, 34), QColor("#D8DEE9"), 2.0);
         }
 
         int idx = 0;
-        for (const auto& poly : placed) {
-            if (idx == 0) glColor3f(0.0f, 1.0f, 1.0f);
-            else if (idx == 1) glColor3f(0.5f, 0.5f, 1.0f);
-            else if (idx == 2) glColor3f(1.0f, 0.5f, 0.0f);
-            else if (idx == 3) glColor3f(0.5f, 1.0f, 0.5f);
-            else glColor3f(1.0f, 0.5f, 1.0f);
-            idx++;
+        for (const auto& visual : placed) {
+            const auto& poly = visual.polygon;
+            if (poly.empty())
+                continue;
 
-            glPointSize(5);
-            glBegin(GL_POINTS);
-            glVertex2d(poly[0].x, poly[0].y);
-            glEnd();
+            QColor fill = visual.color;
+            fill.setAlpha(72);
+            drawPolygon(painter, poly, fill, visual.color.darker(135), 2.0);
+            drawPoint(painter, poly[0], visual.color.darker(150), 4.0);
 
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            glBegin(GL_POLYGON);
-            for (const auto& pt : poly)
-                glVertex2d(pt.x, pt.y);
-            glEnd();
+            S_Shape2D::Box2D box = S_Shape2D::calcBoundingBox(poly);
+            QPointF labelPoint(box.center().x, box.center().y);
+            View2Scr(labelPoint);
+            painter.setPen(QColor("#F8FAFC"));
+            painter.drawText(labelPoint, QString::number(++idx));
         }
 
         if (!nfps.empty()) {
-            glColor3f(0.4f, 0.4f, 0.4f);
-            glLineWidth(1.0f);
-            glLineStipple(1, 0x00FF);
-            glEnable(GL_LINE_STIPPLE);
             for (const auto& nfp : nfps) {
-                glBegin(GL_LINE_LOOP);
-                for (const auto& pt : nfp)
-                    glVertex2d(pt.x, pt.y);
-                glEnd();
+                drawPolygon(painter, nfp, Qt::NoBrush, QColor("#FF4D6D"), 1.4, Qt::DashLine);
             }
-            glDisable(GL_LINE_STIPPLE);
         }
 
         if (!candidates.empty()) {
-            glColor3f(0.3f, 0.6f, 0.3f);
-            glPointSize(3);
-            glBegin(GL_POINTS);
             for (const auto& cand : candidates) {
                 if (!cand.empty())
-                    glVertex2d(cand[0].x, cand[0].y);
+                    drawPoint(painter, cand[0], QColor("#22C55E"), 2.8);
             }
-            glEnd();
 
             for (const auto& cand : candidates) {
-                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-                glBegin(GL_LINE_LOOP);
-                for (const auto& pt : cand)
-                    glVertex2d(pt.x, pt.y);
-                glEnd();
+                drawPolygon(painter, cand, Qt::NoBrush, QColor(34, 197, 94, 90), 1.0);
             }
         }
 
         if (!currentPiece.empty()) {
-            glColor3f(1.0f, 0.0f, 0.0f);
-            glPointSize(6);
-            glBegin(GL_POINTS);
-            glVertex2d(currentPiece[0].x, currentPiece[0].y);
-            glEnd();
-
-            glLineWidth(2.0f);
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            glBegin(GL_POLYGON);
-            for (const auto& pt : currentPiece)
-                glVertex2d(pt.x, pt.y);
-            glEnd();
+            drawPoint(painter, currentPiece[0], QColor("#F97316"), 5.0);
+            drawPolygon(painter, currentPiece, QColor(249, 115, 22, 32), QColor("#F97316"), 2.0);
         }
 
-        painter.save();
         painter.setPen(Qt::white);
         QString info = QString("Pieces: %1  Utilization: %2%")
                        .arg(placed.size())
@@ -180,8 +187,74 @@ protected:
     }
 
 private:
+    QPointF toScreenPoint(const Polyline::Point& pt) {
+        QPointF screenPoint(pt.x, pt.y);
+        View2Scr(screenPoint);
+        return screenPoint;
+    }
+
+    QPainterPath makePath(const Polyline& poly) {
+        QPainterPath path;
+        if (poly.empty())
+            return path;
+
+        path.moveTo(toScreenPoint(poly[0]));
+        for (size_t i = 1; i < poly.size(); ++i)
+            path.lineTo(toScreenPoint(poly[i]));
+        path.closeSubpath();
+        return path;
+    }
+
+    void drawPolygon(QPainter& painter, const Polyline& poly, const QBrush& fill,
+                     const QColor& stroke, qreal width, Qt::PenStyle style = Qt::SolidLine) {
+        if (poly.size() < 2)
+            return;
+
+        QPen pen(stroke, width, style);
+        pen.setJoinStyle(Qt::RoundJoin);
+        painter.setPen(pen);
+        painter.setBrush(fill);
+        painter.drawPath(makePath(poly));
+    }
+
+    void drawPoint(QPainter& painter, const Polyline::Point& pt, const QColor& color, qreal radius) {
+        const QPointF center = toScreenPoint(pt);
+        painter.setPen(QPen(Qt::white, 1.0));
+        painter.setBrush(color);
+        painter.drawEllipse(center, radius, radius);
+    }
+
+    QColor colorForPiece(int pieceIndex) const {
+        if (pieceIndex >= 0 && pieceIndex < static_cast<int>(scene.pieces.size())) {
+            const auto& piece = scene.pieces[pieceIndex];
+            if (const auto* prototype = S_Shape2D::findPrototype(scene, piece.prototypeId))
+                return prototype->color;
+        }
+
+        static const QColor fallback[] = {
+            QColor("#4C78A8"),
+            QColor("#F58518"),
+            QColor("#54A24B"),
+            QColor("#E45756"),
+            QColor("#72B7B2"),
+            QColor("#B279A2")
+        };
+        int idx = std::max(0, pieceIndex);
+        return fallback[idx % (sizeof(fallback) / sizeof(fallback[0]))];
+    }
+
+    QString labelForPiece(int pieceIndex) const {
+        if (pieceIndex >= 0 && pieceIndex < static_cast<int>(scene.pieces.size())) {
+            const auto& piece = scene.pieces[pieceIndex];
+            if (const auto* prototype = S_Shape2D::findPrototype(scene, piece.prototypeId))
+                return prototype->name;
+        }
+        return QString("P%1").arg(pieceIndex + 1);
+    }
+
     Polyline stock;
-    std::vector<Polyline> placed;
+    S_Shape2D::NestScene scene;
+    std::vector<VisualPiece> placed;
     std::vector<Polyline> candidates;
     std::vector<Polyline> nfps;
     Polyline currentPiece;
@@ -198,26 +271,80 @@ NestWindow::NestWindow(QWidget* parent)
     lblInfo = new QLabel(this);
     lblInfo->setStyleSheet("color: white; background: #333; padding: 4px;");
 
+    tblSummary = new QTableWidget(this);
+    tblSummary->setColumnCount(4);
+    tblSummary->setHorizontalHeaderLabels({
+        QString::fromWCharArray(L"\u56FE\u5F62"),
+        QString::fromWCharArray(L"\u6570\u91CF"),
+        QString::fromWCharArray(L"\u5DF2\u653E"),
+        QString::fromWCharArray(L"\u9762\u79EF")
+    });
+    tblSummary->verticalHeader()->setVisible(false);
+    tblSummary->horizontalHeader()->setStretchLastSection(true);
+    tblSummary->setSelectionMode(QAbstractItemView::NoSelection);
+    tblSummary->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    tblSummary->setMaximumWidth(260);
+
     progressBar = new QProgressBar(this);
     progressBar->setStyleSheet(
         "QProgressBar { background: #222; border: 1px solid #555; height: 20px; text-align: center; color: white; }"
         "QProgressBar::chunk { background: #4CAF50; }");
     progressBar->setTextVisible(true);
 
+    QVBoxLayout* sideLayout = new QVBoxLayout;
+    sideLayout->setContentsMargins(6, 6, 6, 6);
+    sideLayout->addWidget(new QLabel(QString::fromWCharArray(L"\u56FE\u5F62\u6458\u8981"), this));
+    sideLayout->addWidget(tblSummary, 1);
+
+    QHBoxLayout* contentLayout = new QHBoxLayout;
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(0);
+    contentLayout->addWidget(view, 1);
+    contentLayout->addLayout(sideLayout, 0);
+
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
-    layout->addWidget(view, 1);
+    layout->addLayout(contentLayout, 1);
     layout->addWidget(lblInfo, 0);
     layout->addWidget(progressBar, 0);
 }
 
+void NestWindow::updateSummaryTable()
+{
+    tblSummary->setRowCount(static_cast<int>(scene.prototypes.size()));
+    for (int row = 0; row < static_cast<int>(scene.prototypes.size()); ++row) {
+        const auto& prototype = scene.prototypes[row];
+
+        auto* nameItem = new QTableWidgetItem(prototype.name);
+        nameItem->setBackground(prototype.color);
+        nameItem->setForeground(prototype.color.lightness() < 128 ? Qt::white : Qt::black);
+
+        tblSummary->setItem(row, 0, nameItem);
+        tblSummary->setItem(row, 1, new QTableWidgetItem(QString::number(prototype.quantity)));
+        tblSummary->setItem(row, 2, new QTableWidgetItem(QString::number(placedPrototypeCounts[prototype.id])));
+        tblSummary->setItem(row, 3, new QTableWidgetItem(QString::number(std::fabs(prototype.contour.area()), 'f', 1)));
+    }
+    tblSummary->resizeRowsToContents();
+}
+
 void NestWindow::beginNest(const Polyline& stock, int totalPieces, int saIterations)
 {
+    beginNest(stock, S_Shape2D::NestScene{}, totalPieces, saIterations);
+}
+
+void NestWindow::beginNest(const Polyline& stock, const S_Shape2D::NestScene& scene,
+                           int totalPieces, int saIterations)
+{
+    this->scene = scene;
     this->totalPieces = totalPieces;
     this->saIterations = saIterations;
     this->placedCount = 0;
-    view->beginNest(stock);
+    this->processedPieces = 0;
+    this->currentPhase = Placing;
+    this->placedPrototypeCounts.clear();
+    view->beginNest(stock, scene);
+    updateSummaryTable();
     lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4E2D... \u653E\u7F6E\u9636\u6BB5"));
     progressBar->setRange(0, 1000);
     progressBar->setValue(0);
@@ -227,12 +354,16 @@ void NestWindow::beginNest(const Polyline& stock, int totalPieces, int saIterati
     activateWindow();
 }
 
-void NestWindow::addPlacedPiece(const Polyline& piece, double utilization)
+void NestWindow::addPlacedPiece(const Polyline& piece, double utilization, int pieceIndex)
 {
-    view->addPiece(piece, utilization);
+    view->addPiece(piece, pieceIndex, utilization);
     placedCount++;
+    if (pieceIndex >= 0 && pieceIndex < static_cast<int>(scene.pieces.size()))
+        placedPrototypeCounts[scene.pieces[pieceIndex].prototypeId]++;
+    updateSummaryTable();
     if (currentPhase == Placing) {
-        int base = (totalPieces > 0) ? (placedCount * 600 / totalPieces) : 0;
+        int visibleProgress = qMax(processedPieces, placedCount);
+        int base = (totalPieces > 0) ? (visibleProgress * 600 / totalPieces) : 0;
         progressBar->setValue(qMin(base, 600));
         progressBar->setFormat(QString::fromWCharArray(L"\u653E\u7F6E\u4E2D... %p%"));
         lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4E2D... \u5DF2\u653E\u7F6E %1/%2 | \u5229\u7528\u7387: %3%")
@@ -247,6 +378,34 @@ void NestWindow::addPlacedPiece(const Polyline& piece, double utilization)
                          .arg(placedCount)
                          .arg(utilization, 0, 'f', 1));
     }
+    QCoreApplication::processEvents();
+}
+
+void NestWindow::setPlacedPieces(const std::vector<Polyline>& pieces, double utilization)
+{
+    view->setPieces(pieces, utilization);
+    placedCount = static_cast<int>(pieces.size());
+    updateSummaryTable();
+    QCoreApplication::processEvents();
+}
+
+void NestWindow::setPlacementProgress(int processedPieces, int totalPieces)
+{
+    if (totalPieces > 0)
+        this->totalPieces = totalPieces;
+
+    this->processedPieces = qMax(0, processedPieces);
+
+    if (currentPhase != Placing || this->totalPieces <= 0)
+        return;
+
+    int base = qMin(this->processedPieces * 600 / this->totalPieces, 600);
+    progressBar->setValue(qMax(progressBar->value(), base));
+    progressBar->setFormat(QString::fromWCharArray(L"\u653E\u7F6E\u4E2D... %p%"));
+    lblInfo->setText(QString::fromWCharArray(L"  \u6392\u7248\u4E2D... \u5DF2\u5904\u7406 %1/%2 | \u5DF2\u653E\u7F6E %3")
+                     .arg(qMin(this->processedPieces, this->totalPieces))
+                     .arg(this->totalPieces)
+                     .arg(placedCount));
     QCoreApplication::processEvents();
 }
 

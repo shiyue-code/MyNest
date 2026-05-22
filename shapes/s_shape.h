@@ -1,5 +1,5 @@
-#ifndef SHAPE_H
-#define SHAPE_H
+#ifndef S_SHAPE_H
+#define S_SHAPE_H
 
 #include "s_def.h"
 
@@ -8,35 +8,36 @@ namespace S_Shape2D {
 class Shape {
 public:
     Shape() = default;
+    virtual ~Shape() = default;
 
     virtual ShapeType rtti() = 0;
 
-    ShapeFlags flags()
+    ShapeFlags flags() const
     {
         return ShapeFlags(shapeFlags);
     }
 
-    bool hasFlag(ShapeFlags f)
+    bool hasFlag(ShapeFlags flag) const
     {
-        return f & shapeFlags;
+        return (shapeFlags & flag) != 0;
     }
 
-    void addFlag(ShapeFlags f)
+    void addFlag(ShapeFlags flag)
     {
-        shapeFlags |= f;
+        shapeFlags |= flag;
     }
 
-    void setFags(ShapeFlags f = FlagUndone)
+    void setFlags(ShapeFlags flags = FlagUndone)
     {
-        shapeFlags = f;
+        shapeFlags = flags;
     }
 
 private:
-    int shapeFlags;
+    int shapeFlags = FlagUndone;
 };
 
 }
 
 USE_S_(Shape);
 
-#endif // SHAPE_H
+#endif // S_SHAPE_H

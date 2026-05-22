@@ -1,16 +1,18 @@
 ﻿#include "kwctrlview.h"
 
-#include <QDebug>
 #include <QMouseEvent>
 #include <QPainter>
 
 #include <cmath>
-#include <ctime>
 
-#ifndef ARM
 #include <gl/GLU.h>
 
-using namespace std;
+using std::abs;
+using std::fabs;
+using std::max;
+using std::min;
+using std::round;
+using std::sqrt;
 
 KWCtrlView::KWCtrlView(QWidget* parent)
     : QOpenGLWidget(parent)
@@ -117,7 +119,6 @@ void KWCtrlView::DrawTick(QPainter& painter)
     int ye = int(ptLeftTop.y());
     int xe = int(ptRightTop.x());
 
-    //! 竖直画标线
     glBegin(GL_LINES);
     for (y = ys; (m_bCoordMirrorY ? y >= ye : y <= ye); y += stepy) {
         glVertex2d(ptLeftTop.x(), y);
@@ -133,7 +134,6 @@ void KWCtrlView::DrawTick(QPainter& painter)
             glVertex2d(ptRightTop.x() - delta * deltaX, y);
     }
 
-    ///画水平刻度
     for (x = xs; (m_bCoordMirrorX ? x >= xe : x <= xe); x += stepx) {
         glVertex2d(x, ptLeftTop.y());
         if (x % modx == 0)
@@ -149,7 +149,6 @@ void KWCtrlView::DrawTick(QPainter& painter)
     }
     glEnd();
 
-    //!左下角箭头
     double deltaDir = delta * 2;
     double deltaDir2 = deltaDir * 2;
     double deltaDir3 = deltaDir * 3;
@@ -179,7 +178,6 @@ void KWCtrlView::DrawTick(QPainter& painter)
     painter.save();
     painter.setPen(m_clrTick);
 
-    ///画竖直刻度数字
     for (y = ys + mody; (m_bCoordMirrorY ? y >= ye : y <= ye); y += stepy) {
         if (y % mody == 0) {
             str.setNum(y);
@@ -238,28 +236,26 @@ void KWCtrlView::DrawCross()
 
 void KWCtrlView::Scr2View(QPointF& pt)
 {
-    QRect ClientRect = this->rect(); // 获取视口区域大小
+    QRect ClientRect = this->rect();
 
-    float w = ClientRect.width(); // 窗口宽度 w
-    float h = ClientRect.height(); // 窗口高度 h
+    float w = ClientRect.width();
+    float h = ClientRect.height();
     float aspect = w / h;
 
     if (h == 0) {
         aspect = w;
     }
 
-    float centex = w / 2; // 中心位置
-    float centey = h / 2; // 中心位置
+    float centex = w / 2;
+    float centey = h / 2;
 
     int deltaX = m_bCoordMirrorX ? -1 : 1;
     int deltaY = m_bCoordMirrorY ? -1 : 1;
 
-    // 屏幕的视觉宽度为 m_dViewHeight * aspect
-    float tmpx = deltaX * 2 * m_dViewH * aspect * (pt.x() - centex) / w; // 屏幕上点坐标转化为OpenGL画图的规范坐标
+    float tmpx = deltaX * 2 * m_dViewH * aspect * (pt.x() - centex) / w;
     float tmpy = deltaY * 2 * m_dViewH * (centey - pt.y()) / h;
     pt = QPointF(tmpx, tmpy);
 
-    //偏移缩放
     ScaleAndTrans(pt);
 }
 
@@ -269,25 +265,24 @@ void KWCtrlView::View2Scr(QPointF& pt)
     pt.rx() *= m_fScale;
     pt.ry() += m_dYTrans;
     pt.ry() *= m_fScale;
-    QRect ClientRect = this->rect(); // 获取视口区域大小
+    QRect ClientRect = this->rect();
 
-    int w = ClientRect.width(); // 窗口宽度 w
-    int h = ClientRect.height(); // 窗口高度 h
+    int w = ClientRect.width();
+    int h = ClientRect.height();
     double aspect = (double)w / h;
 
     if (h == 0) {
         aspect = w;
     }
 
-    double centex = w / 2; // 中心位置
-    double centey = h / 2; // 中心位置
+    double centex = w / 2;
+    double centey = h / 2;
 
-    // 屏幕的视觉宽度为 m_dViewHeight * aspect
     double tmpx, tmpy;
     int deltaX = m_bCoordMirrorX ? -1 : 1;
     int deltaY = m_bCoordMirrorY ? -1 : 1;
 
-    tmpx = deltaX * pt.x() * w / 2 / m_dViewH / aspect + centex; //OpenGL画图的规范坐标转化为屏幕上点坐标
+    tmpx = deltaX * pt.x() * w / 2 / m_dViewH / aspect + centex;
     tmpy = centey - deltaY * pt.y() * h / 2 / m_dViewH;
     pt = QPointF(tmpx, tmpy);
 }
@@ -331,7 +326,6 @@ void KWCtrlView::DrawArrow(const QPointF& ptStart, const QPointF& ptEnd, bool bB
     QVector2D dir, dirT;
     QPointF ptTmp, pt0, pt1;
 
-    ///箭头大小设置
     double L = abs(ptRightTop.x() - ptLeftTop.x()) / (rect.width() / arrowsize);
     double W = L / sqrt(3);
 
@@ -413,19 +407,15 @@ void KWCtrlView::initializeGL()
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    //使用光滑着色时（即GL_SMOOTH），独立的处理图元中各个顶点的颜色
     glShadeModel(GL_SMOOTH);
     glClearColor(m_clrBackGround.red() / 255.0, m_clrBackGround.green() / 255.0, m_clrBackGround.blue() / 255.0, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearDepth(1.0f);
 
-    //目标像素与当前像素在z方向上值大小比较
     glDepthFunc(GL_LEQUAL);
 
-    //指定颜色和纹理坐标的差值质量  GL_NICEST高质量 GL_FASTEST高性能 GL_DONT_CARE不考虑
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
-    //抗锯齿
     glEnable(GL_POINT_SMOOTH);
     glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
     glEnable(GL_LINE_SMOOTH);
@@ -440,9 +430,6 @@ void KWCtrlView::initializeGL()
 void KWCtrlView::resizeGL(int width, int height)
 {
     m_painterPix = QPixmap(width, height);
-    /*
-    Opengl相关
-    */
     GLsizei gWidth, gHeight;
     GLdouble aspect;
     gWidth = width;
@@ -484,7 +471,6 @@ void KWCtrlView::paintGL()
         }
     }
 
-    //!painter绘制到图片中
     m_painterPix.fill(QColor(Qt::transparent));
     QPainter painter(&m_painterPix);
 
@@ -498,10 +484,8 @@ void KWCtrlView::paintGL()
     DrawGLSence(painter);
     DrawSelectBox();
 
-    //!图片绘制结束
     painter.end();
 
-    //////红蓝像素交换,镜像
     QImage image = m_painterPix.toImage().mirrored(false, true);
     glDrawPixels(image.width(), image.height(), GL_BGRA, GL_UNSIGNED_BYTE, image.bits());
 
@@ -511,14 +495,14 @@ void KWCtrlView::paintGL()
 
 void KWCtrlView::mouseMoveEvent(QMouseEvent* event)
 {
-    QPointF ptScr = QPointF(event->pos().x(), event->pos().y());
+    QPointF ptScr = event->localPos();
     QPointF ptView = ptScr;
     Scr2View(ptView);
     if (m_bActiveMouse) {
-        if (m_bLButtonDown) { //左键按下，移动鼠标
+        if (m_bLButtonDown) {
             m_ptEnd = ptView;
             m_rectSelectingBox.setCoords(m_ptStart.x(), m_ptStart.y(), m_ptEnd.x(), m_ptEnd.y());
-        } else if (m_bRButtonDown) { //右键按下，移动鼠标
+        } else if (m_bRButtonDown) {
             m_ptEnd = ptView;
             m_ptEnd.rx() += m_dXTrans;
             m_ptEnd.ry() += m_dYTrans;
@@ -535,22 +519,20 @@ void KWCtrlView::mouseMoveEvent(QMouseEvent* event)
 
 void KWCtrlView::mousePressEvent(QMouseEvent* event)
 {
-    QPointF ptScr = QPointF(event->pos().x(), event->pos().y());
+    QPointF ptScr = event->localPos();
     QPointF ptView = ptScr;
     Scr2View(ptView);
 
-    if (event->button() & Qt::LeftButton) { //左键按下
+    if (event->button() & Qt::LeftButton) {
         m_ptStart = m_ptEnd = ptView;
         m_bLButtonDown = true;
         MouseLButtonPressed(ptView, ptScr);
-    } else if (event->button() & Qt::RightButton) { //鼠标右键
-        //记录位置
+    } else if (event->button() & Qt::RightButton) {
         m_ptStart = ptView;
         m_ptStart.rx() += m_dXTrans;
         m_ptStart.ry() += m_dYTrans;
         m_ptEnd = m_ptStart;
 
-        //记录之前坐标系偏移
         m_dXTransOld = m_dXTrans;
         m_dYTransOld = m_dYTrans;
         m_bRButtonDown = true;
@@ -562,13 +544,13 @@ void KWCtrlView::mousePressEvent(QMouseEvent* event)
 
 void KWCtrlView::mouseReleaseEvent(QMouseEvent* event)
 {
-    QPointF ptScr = QPointF(event->pos().x(), event->pos().y());
+    QPointF ptScr = event->localPos();
     QPointF ptView = ptScr;
     Scr2View(ptView);
     if (event->button() & Qt::LeftButton) {
         m_bLButtonDown = false;
         m_ptStart = m_ptEnd = ptView;
-        m_rectSelectingBox.setSize(QSize(0, 0)); //ptView, ptView);
+        m_rectSelectingBox.setSize(QSize(0, 0));
         MouseLButtonReleased(ptView, ptScr);
     } else if (event->button() & Qt::RightButton) {
         m_ptEnd = ptView;
@@ -583,7 +565,7 @@ void KWCtrlView::mouseReleaseEvent(QMouseEvent* event)
 
 void KWCtrlView::wheelEvent(QWheelEvent* event)
 {
-    QPointF pt(event->pos().x(), event->pos().y());
+    QPointF pt = event->position();
     QPointF ptOrg, ptTar;
 
     QPointF ptView = pt;
@@ -591,7 +573,7 @@ void KWCtrlView::wheelEvent(QWheelEvent* event)
     ptOrg.rx() = ptView.x();
     ptOrg.ry() = ptView.y();
 
-    m_fScale += m_fScale * m_fZoomStep * event->delta() / 240;
+    m_fScale += m_fScale * m_fZoomStep * event->angleDelta().y() / 240;
     if (m_fScale < 0.0001f) {
         m_fScale = 0.0001f;
     }
@@ -610,14 +592,14 @@ void KWCtrlView::wheelEvent(QWheelEvent* event)
 
 void KWCtrlView::mouseDoubleClickEvent(QMouseEvent* event)
 {
-    QPointF ptScr = QPointF(event->pos().x(), event->pos().y());
+    QPointF ptScr = event->localPos();
     QPointF ptView = ptScr;
     Scr2View(ptView);
 
     if (event->button() & Qt::LeftButton) {
         MouseLDoubleClick(ptView, ptScr);
     } else if (event->button() & Qt::RightButton) {
-        MouseLDoubleClick(ptView, ptScr);
+        MouseRDoubleClick(ptView, ptScr);
     }
 }
 
@@ -640,7 +622,6 @@ void KWCtrlView::leaveEvent(QEvent* evt)
 void KWCtrlView::BindTexture(const QImage& img, int i)
 {
     if (img.format() != QImage::Format_Indexed8) {
-        //qDebug() << img.format();
         return;
     }
     m_imgTexture[i] = img;
@@ -655,8 +636,6 @@ void KWCtrlView::BindTexture(const QImage& img, int i)
 void KWCtrlView::DrawTexture(int i)
 {
     glEnable(GL_TEXTURE_2D);
-
-    //    glColor3f(0.8, 0.8, 0.8);
 
     glBegin(GL_POLYGON);
 
@@ -678,127 +657,3 @@ void KWCtrlView::glColor(const QColor& clr)
 {
     glColor3f(clr.red() / 255.0, clr.green() / 255.0, clr.blue() / 255.0);
 }
-#else
-
-KWCtrlView::KWCtrlView(QWidget* parent)
-    : QWidget(parent)
-{
-    m_tmUpdate.start(200, this);
-}
-
-KWCtrlView::~KWCtrlView()
-{
-}
-
-void KWCtrlView::ResetView()
-{
-    m_matrix.reset();
-}
-
-void KWCtrlView::SetShapeSet(const GrShapeSetSPtr& pShapeSet)
-{
-    if (!pShapeSet->Size())
-        return;
-    Box box;
-    pShapeSet->GetBBox(box);
-    _window.setCoords(box.xmin(), box.ymin(), box.xmax(), box.ymax());
-    //m_painter->setViewport(this->rect());
-    //m_painter->scale(max(rect().width() / box.Width(), rect().height() / box.Height()), max(rect().width() / box.Width(), rect().height() / box.Height()));
-    QPainterPath path;
-    auto iterShape = pShapeSet->ShapeBegin();
-    Shape* pShape = nullptr;
-    std::vector<QPointF> pts;
-    for (iterShape = pShapeSet->ShapeBegin(); iterShape != pShapeSet->ShapeEnd(); ++iterShape) {
-        pts.clear();
-        pShape = (*iterShape);
-        pShape->GetPoints(pts);
-        for (size_t i = 0; i < pts.size(); ++i) {
-            i == 0 ? path.moveTo(pts[i].x(), pts[i].y()) : path.lineTo(pts[i].x(), pts[i].y());
-        }
-    }
-    QPixmap pix(rect().width(), rect().height());
-    pShapeSet->CreatePixmap(pix);
-    m_pix.swap(pix);
-    m_drawPath.swap(path);
-}
-
-void KWCtrlView::RestoreMode()
-{
-}
-
-void KWCtrlView::UpdateMode()
-{
-}
-
-void KWCtrlView::setSortedFlag(bool b)
-{
-}
-
-void KWCtrlView::SetMultipSel(bool b)
-{
-}
-
-void KWCtrlView::EnterDrawMode(int nMode)
-{
-}
-
-void KWCtrlView::SetShapeTechnology(int nTech)
-{
-}
-
-void KWCtrlView::paintEvent(QPaintEvent* evt)
-{
-    QPainter painter(this);
-    QPen pen = QPen(QColor(Qt::green));
-    painter.setBackground(QBrush(QColor(Qt::black)));
-    pen.setWidth(50);
-    painter.setPen(pen);
-    painter.resetMatrix();
-    painter.translate(offset, offset);
-
-    painter.setViewport(rect());
-    painter.setWindow(_window);
-    painter.drawPixmap(_window, m_pix);
-    painter.end();
-    QWidget::paintEvent(evt);
-}
-
-void KWCtrlView::mouseMoveEvent(QMouseEvent* event)
-{
-    static int delta = 100;
-    if (offset > 10000 || offset <= -1000)
-        delta = -delta;
-
-    offset += delta;
-    //update();
-    return QWidget::mouseMoveEvent(event);
-}
-
-void KWCtrlView::mousePressEvent(QMouseEvent* evt)
-{
-    if (evt->button() == Qt::LeftButton) {
-        m_bLButtonDown = true;
-    } else {
-        m_bRButtonDown = true;
-    }
-}
-
-void KWCtrlView::mouseReleaseEvent(QMouseEvent* evt)
-{
-    if (evt->button() == Qt::LeftButton) {
-        m_bLButtonDown = false;
-    } else {
-        m_bRButtonDown = false;
-    }
-}
-
-void KWCtrlView::timerEvent(QTimerEvent* evt)
-{
-    if (m_tmUpdate.timerId() == evt->timerId() && m_bLButtonDown) {
-        update();
-    } else {
-        QWidget::timerEvent(evt);
-    }
-}
-
-#endif

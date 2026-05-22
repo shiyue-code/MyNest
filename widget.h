@@ -5,6 +5,9 @@
 #include <QThread>
 #include <QWidget>
 #include <QPointer>
+#include <vector>
+
+#include "nest/nest_scene.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -28,6 +31,9 @@ private slots:
 
     void onExec();
     void onNest();
+    void onAddShape();
+    void onRemoveShape();
+    void onClearShapes();
 
     void onTimer();
 
@@ -35,11 +41,22 @@ private slots:
     void OnLoad(const QString& absoluteFilePath = QString());
 
 private:
+    using Polyline = S_Shape2D::Polyline2D;
+
+    void addShapePrototype(const QString& name, const Polyline& polygon, int quantity);
+    void refreshShapeTable();
+    void syncShapeLibraryFromTable();
+    S_Shape2D::NestScene buildNestSceneFromUi();
+    Polyline selectedSourcePolygon(QString* sourceName = nullptr);
+    QColor colorForShape(int index) const;
+
     Ui::Widget* ui;
 
     QTimer timer;
     QPointer<NestWindow> nestWindow;
     QThread* nestThread = nullptr;
     S_Shape2D::Nester* nester = nullptr;
+    std::vector<S_Shape2D::ShapePrototype> shapeLibrary;
+    int nextPrototypeId = 1;
 };
 #endif // WIDGET_H

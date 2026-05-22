@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 ## Project Overview
 
@@ -27,23 +27,21 @@ D:\Qt\Tools\mingw810_64\bin\mingw32-make.exe -j4
 ├── widget.cpp/h/ui       # Main UI, algorithm selection, debug output
 ├── s_common.hpp          # Common math utilities, epsilon comparisons
 ├── nest/                 # NFP algorithms
-│   ├── nfpplacer.h/cpp   # NfpPlacer interface (set, exec, getNFPs)
-│   ├── nfpplacer_common.h # Shared geometry, segment splitting, ring extraction
-│   ├── nfpplacer_moving.cpp  # Moving collision algorithm
-│   ├── nfpplacer_vector.cpp  # Vector segment algorithm
-│   ├── nfpplacer_minkowski.cpp # Minkowski algorithm (uses Clipper)
+│   ├── nfp_placer.h/cpp   # NfpPlacer interface (set, exec, getNFPs)
+│   ├── nfp_placer_common.h # Shared geometry, segment splitting, ring extraction
+│   ├── nfp_placer_moving.cpp  # Moving collision algorithm
+│   ├── nfp_placer_vector.cpp  # Vector segment algorithm
+│   ├── nfp_placer_minkowski.cpp # Minkowski algorithm (uses Clipper)
 │   └── clipper/          # Clipper library (Minkowski diff)
 ├── shapes/               # 2D geometry primitives
 │   ├── s_point.hpp       # Point<T> template (Point2D, Point2F, Point2R)
 │   ├── s_polyline.hpp    # Polyline<T> template (Polyline2D, Polyline2R)
-│   ├── s_line.hpp        # Line<T> template
 │   ├── s_box.hpp         # Bounding box
 │   ├── s_math.h          # Math utilities
 │   └── s_shape.h         # Shape base class
 ├── view/                 # Visualization
 │   ├── myctrlview.cpp/h  # NFP drawing, animation, reference point display
 │   └── kwctrlview.cpp/h  # Base view control
-└── actions/              # Action handling
 ```
 
 ## Key Conventions

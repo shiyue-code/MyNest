@@ -14,50 +14,36 @@ msvc {
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    actions/s_action.cpp \
     main.cpp \
     nest/clipper/clipper.cpp \
     nest/nester.cpp \
-    nest/nester_bl.cpp \
-    nest/nester_eval.cpp \
+    nest/nester_bottom_left.cpp \
+    nest/nester_evaluation.cpp \
     nest/nester_greedy.cpp \
-    nest/nester_sa.cpp \
-    nest/nesttools.cpp \
-    nest/nfpplacer.cpp \
-    nest/nfpplacer_minkowski.cpp \
-    nest/nfpplacer_moving.cpp \
-    nest/nfpplacer_vector.cpp \
-    shapes/s_box.cpp \
-    shapes/s_document.cpp \
-    shapes/s_line.cpp \
-    shapes/s_math.cpp \
-    shapes/s_point.cpp \
-    shapes/s_polyline.cpp \
-    shapes/s_shape.cpp \
-    shapes/s_shapecontainer.cpp \
+    nest/nester_simulated_annealing.cpp \
+    nest/nfp_placer.cpp \
+    nest/nfp_placer_minkowski.cpp \
+    nest/nfp_placer_moving.cpp \
+    nest/nfp_placer_vector.cpp \
     view/kwctrlview.cpp \
     view/myctrlview.cpp \
     view/nestwindow.cpp \
     widget.cpp
 
 HEADERS += \
-    actions/s_action.h \
     nest/clipper/clipper.hpp \
     nest/nester.h \
+    nest/nest_scene.h \
     nest/nester_common.h \
-    nest/nfpplacer_common.h \
-    nest/nfpplacer.h \
+    nest/nfp_placer_common.h \
+    nest/nfp_placer.h \
     s_common.hpp \
-    nest/nesttools.h \
     shapes/s_box.hpp \
     shapes/s_def.h \
-    shapes/s_document.h \
-    shapes/s_line.hpp \
     shapes/s_math.h \
     shapes/s_point.hpp \
     shapes/s_polyline.hpp \
     shapes/s_shape.h \
-    shapes/s_shapecontainer.h \
     shapes/utiltool.h \
     test.h \
     view/kwctrlview.h \

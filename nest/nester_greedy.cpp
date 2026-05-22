@@ -22,11 +22,17 @@ void Nester::execGreedy()
     sortByComplexity(indices);
 
     qDebug() << "Greedy sorted:" << indices << "rotation steps:" << config.rotationSteps;
+    emit phaseChanged(QString::fromWCharArray(L"  \u6392\u7248\u4E2D... \u653E\u7F6E\u9636\u6BB5"));
+    emit placementProgress(0, static_cast<int>(indices.size()));
 
+    int processedPieces = 0;
     for (int idx : indices) {
         Polyline poly = polygons[idx];
         cleanPolygon(poly);
-        if (poly.size() < 3) continue;
+        if (poly.size() < 3) {
+            emit placementProgress(++processedPieces, static_cast<int>(indices.size()));
+            continue;
+        }
         if (poly.orientation() == Polyline::Clockwise)
             poly.reverse();
 
@@ -37,14 +43,7 @@ void Nester::execGreedy()
         bool found = false;
 
         for (double rot : rotations) {
-            ScoredPosition sp = evaluateRotation(poly, rot, placements, false);
-
-            if (!sp.candidatePolys.empty()) {
-                Polyline rotated = poly;
-                if (std::fabs(rot) > 1e-9)
-                    rotated.rotate(rot);
-                emit candidatesReady(sp.candidatePolys, sp.nfpPolys, rotated);
-            }
+            ScoredPosition sp = evaluateRotation(poly, rot, placements, false, false);
 
             if (sp.score < bestSP.score) {
                 bestSP = sp;
@@ -53,10 +52,18 @@ void Nester::execGreedy()
         }
 
         if (found) {
+            ScoredPosition previewSP = evaluateRotation(poly, bestSP.rotation, placements, false, true);
+            if (!previewSP.candidatePolys.empty()) {
+                Polyline previewPoly = poly;
+                if (std::fabs(bestSP.rotation) > 1e-9)
+                    previewPoly.rotate(bestSP.rotation);
+                emit candidatesReady(previewSP.candidatePolys, previewSP.nfpPolys, previewPoly);
+            }
+
             Polyline placedPoly = poly;
             if (std::fabs(bestSP.rotation) > 1e-9)
                 placedPoly.rotate(bestSP.rotation);
-            placements.push_back({placedPoly, bestSP.pos, bestSP.rotation});
+            placements.push_back(makePlacement(idx, placedPoly, bestSP.pos, bestSP.rotation));
 
             double util = getUtilization();
             qDebug() << "Greedy placed" << idx << "at" << bestSP.pos.x << bestSP.pos.y
@@ -66,6 +73,7 @@ void Nester::execGreedy()
         } else {
             qDebug() << "Greedy skipped" << idx;
         }
+        emit placementProgress(++processedPieces, static_cast<int>(indices.size()));
     }
 
     if (config.enableBLF) {
@@ -119,7 +127,7 @@ void Nester::execGreedy()
                 Polyline placedPoly = poly;
                 if (std::fabs(bestGap.rotation) > 1e-9)
                     placedPoly.rotate(bestGap.rotation);
-                placements.push_back({placedPoly, bestGap.pos, bestGap.rotation});
+                placements.push_back(makePlacement(idx, placedPoly, bestGap.pos, bestGap.rotation));
                 qDebug() << "Greedy BLF filled" << idx << "at" << bestGap.pos.x << bestGap.pos.y;
                 emit stepCompleted(getPlacedPolygons(), getStock(), getUtilization(), idx);
             }

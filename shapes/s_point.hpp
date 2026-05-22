@@ -1,19 +1,20 @@
-#ifndef S_POINT_H
-#define S_POINT_H
-
-#include <vector>
+#ifndef S_POINT_HPP
+#define S_POINT_HPP
 
 #include "../s_common.hpp"
 #include "s_math.h"
 #include "s_shape.h"
 
+#include <cmath>
+
 namespace S_Shape2D {
 
-template <typename T, typename UserMath=Math>
+template <typename T, typename UserMath = Math>
 class Point : public Shape {
 public:
-    using PointT = Point<T>;
+    using PointT = Point<T, UserMath>;
     using Coord = T;
+
     Coord x { 0 };
     Coord y { 0 };
     bool valid { false };
@@ -28,22 +29,14 @@ public:
     {
     }
 
-    Point(const Point& pt)
-        : x(pt.x)
-        , y(pt.y)
-        , valid(pt.valid)
-    {
-    }
-
-    operator bool() const
+    explicit operator bool() const
     {
         return valid;
     }
 
-    //angle-X
     double angle() const
     {
-        return Math::correctAngle(atan2(y, x));
+        return UserMath::correctAngle(std::atan2(y, x));
     }
 
     double angleTo(const Point& pt) const
@@ -73,7 +66,7 @@ public:
 
     Coord norm() const
     {
-        return sqrt(x * x + y * y);
+        return std::sqrt(x * x + y * y);
     }
 
     Coord square() const
@@ -83,7 +76,9 @@ public:
 
     Point normalize()
     {
-        *this /= norm();
+        Coord length = norm();
+        if (!isEqual(length, Coord(0)))
+            *this /= length;
         return *this;
     }
 
@@ -102,17 +97,16 @@ public:
         return { x + pt.x, y + pt.y };
     }
 
-    Point operator*(Coord v)
+    Point operator*(Coord value) const
     {
-        return { x * v, y * v };
+        return { x * value, y * value };
     }
 
-    Point& operator=(const Point& pt)
+    Point operator/(Coord value) const
     {
-        x = pt.x;
-        y = pt.y;
-        valid = pt.valid;
-        return *this;
+        auto pt = *this;
+        pt /= value;
+        return pt;
     }
 
     Point& operator-=(const Point& pt)
@@ -129,66 +123,58 @@ public:
         return *this;
     }
 
-    Point& operator*=(Coord v)
+    Point& operator*=(Coord value)
     {
-        x *= v;
-        y *= v;
+        x *= value;
+        y *= value;
         return *this;
     }
 
-    Point operator/(Coord v)
+    Point& operator/=(Coord value)
     {
-        auto pt = *this;
-        pt /= v;
-        return pt;
-    }
-
-    Point& operator/=(Coord v)
-    {
-        x /= v;
-        y /= v;
+        x /= value;
+        y /= value;
         return *this;
     }
 
     bool operator==(const Point& pt) const
     {
-        return valid && pt && isEqual(pt.x, x) && isEqual(pt.y, y);
+        return valid && pt.valid && isEqual(pt.x, x) && isEqual(pt.y, y);
     }
 
     bool operator!=(const Point& pt) const
     {
-        return !(pt == *this);
+        return !(*this == pt);
     }
 
     void rotate(Coord radian)
     {
-        Coord x_ = x * cos(radian) - y * sin(radian);
-        Coord y_ = x * sin(radian) + y * cos(radian);
-        x = x_;
-        y = y_;
+        Coord rotatedX = x * std::cos(radian) - y * std::sin(radian);
+        Coord rotatedY = x * std::sin(radian) + y * std::cos(radian);
+        x = rotatedX;
+        y = rotatedY;
     }
 
-    void translate(const Point& pt)
+    void translate(const Point& offset)
     {
-        x += pt.x;
-        y += pt.y;
+        x += offset.x;
+        y += offset.y;
     }
 
-    // Shape interface
-public:
     ShapeType rtti() override
     {
         return ShapeType::ShapePoint;
     }
 };
 
-typedef Point<double> Point2D;
-typedef Point<float> Point2F;
-typedef Point<Rational64> Point2R;
+using Point2D = Point<double>;
+using Point2F = Point<float>;
+using Point2R = Point<Rational64>;
+
 }
 
 USE_S_(Point2D);
 USE_S_(Point2F);
 USE_S_(Point2R);
 
-#endif // S_POINT_H
+#endif // S_POINT_HPP

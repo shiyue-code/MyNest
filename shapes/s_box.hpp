@@ -1,13 +1,15 @@
-#ifndef BOX_H
-#define BOX_H
+#ifndef S_BOX_HPP
+#define S_BOX_HPP
 
 #include "s_point.hpp"
-#include "s_shape.h"
+
+#include <algorithm>
 
 namespace S_Shape2D {
+
 template <typename T>
 struct PointPair {
-    typedef Point<T> PointType;
+    using PointType = Point<T>;
 
     PointType p0;
     PointType p1;
@@ -23,24 +25,14 @@ struct PointPair {
 template <typename T>
 class Box : public PointPair<T> {
 private:
-    bool valid { false };
-
-    typedef PointPair<T> BoxBase;
-    typedef typename PointPair<T>::PointType Point;
+    using Point = typename PointPair<T>::PointType;
 
 public:
     Box() = default;
-    Box(const Point& p0, const Point& p1)
-        : BoxBase({ std::min(p0.x, p1.x), std::min(p0.y, p1.y) },
-            { std::max(p0.x, p1.x), std::max(p0.y, p1.y) })
-        , valid(true)
-    {
-    }
 
-    Box(const Box<T>& box)
-        : BoxBase(box.p0, box.p1)
-        , valid(box.valid)
+    Box(const Point& p0, const Point& p1)
     {
+        set(p0, p1);
     }
 
     void set(const Point& p0, const Point& p1)
@@ -52,22 +44,18 @@ public:
 
     void append(const Point& pt)
     {
-        if (valid) {
-            if (left() > pt.x)
-                left() = pt.x;
-            else if (right() < pt.x)
-                right() = pt.x;
-
-            if (top() > pt.y)
-                top() = pt.y;
-            if (bottom() < pt.y)
-                bottom() = pt.y;
-        } else {
+        if (!valid) {
             set(pt, pt);
+            return;
         }
+
+        left() = std::min(left(), pt.x);
+        right() = std::max(right(), pt.x);
+        top() = std::min(top(), pt.y);
+        bottom() = std::max(bottom(), pt.y);
     }
 
-    operator bool() const
+    explicit operator bool() const
     {
         return valid;
     }
@@ -94,7 +82,7 @@ public:
 
     Point center() const
     {
-        return (this->p0 + this->p1) * 0.5;
+        return (this->p0 + this->p1) * T(0.5);
     }
 
     T width() const
@@ -147,45 +135,38 @@ public:
         return this->p1.y;
     }
 
-    Box<T> operator|(const Box<T>& box)
+    Box operator|(const Box& box) const
     {
         Box copy = *this;
         copy |= box;
         return copy;
     }
 
-    Box<T>& operator=(const Box<T>& box)
+    Box& operator|=(const Box& box)
     {
-        this->p0 = box.p0;
-        this->p1 = box.p1;
-        this->valid = box.valid;
-        return *this;
-    }
+        if (!box.valid)
+            return *this;
 
-    Box<T>& operator|=(const Box<T>& box)
-    {
-
-        if (valid && box.valid) {
-            if (this->left() > box.left())
-                this->left() = box.left();
-
-            if (this->right() < box.right())
-                this->right() = box.right();
-
-            if (this->top() > box.top())
-                this->top() = box.top();
-
-            if (this->bottom() < box.bottom())
-                this->bottom() = box.bottom();
-        } else {
-            *this = box;
+        if (!valid) {
+            this->p0 = box.p0;
+            this->p1 = box.p1;
+            valid = true;
+            return *this;
         }
+
+        left() = std::min(left(), box.left());
+        right() = std::max(right(), box.right());
+        top() = std::min(top(), box.top());
+        bottom() = std::max(bottom(), box.bottom());
         return *this;
     }
+
+private:
+    bool valid { false };
 };
 
-typedef Box<double> Box2D;
+using Box2D = Box<double>;
 
 }
 
-#endif // BOX_H
+#endif // S_BOX_HPP

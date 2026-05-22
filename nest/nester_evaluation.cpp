@@ -11,7 +11,8 @@ namespace S_Shape2D {
 
 Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot,
                                                 const std::vector<Placement>& placed,
-                                                bool useBL)
+                                                bool useBL,
+                                                bool collectPreview)
 {
     NestPoly rotated = poly;
     if (std::fabs(rot) > 1e-9)
@@ -57,35 +58,39 @@ Nester::ScoredPosition Nester::evaluateRotation(const Polyline& poly, double rot
         validCands.push_back(cand);
     }
 
-    std::vector<Polyline> candPolys;
-    for (auto& cand : validCands) {
-        Polyline p = rotated;
-        p.translate(cand);
-        candPolys.push_back(p);
-    }
-    std::vector<Polyline> nfpPolys;
-    NestPoint refOff = rotated[0];
-    for (auto& g : nfps) {
-        for (auto& o : g.outers) {
-            Polyline po = o;
-            for (auto& pt : po) {
-                pt.x += refOff.x;
-                pt.y += refOff.y;
-            }
-            nfpPolys.push_back(po);
+    if (collectPreview) {
+        std::vector<Polyline> candPolys;
+        candPolys.reserve(validCands.size());
+        for (auto& cand : validCands) {
+            Polyline p = rotated;
+            p.translate(cand);
+            candPolys.push_back(p);
         }
-        for (auto& h : g.holes) {
-            Polyline ph = h;
-            for (auto& pt : ph) {
-                pt.x += refOff.x;
-                pt.y += refOff.y;
-            }
-            nfpPolys.push_back(ph);
-        }
-    }
 
-    bestSP.candidatePolys = candPolys;
-    bestSP.nfpPolys = nfpPolys;
+        std::vector<Polyline> nfpPolys;
+        NestPoint refOff = rotated[0];
+        for (auto& g : nfps) {
+            for (auto& o : g.outers) {
+                Polyline po = o;
+                for (auto& pt : po) {
+                    pt.x += refOff.x;
+                    pt.y += refOff.y;
+                }
+                nfpPolys.push_back(po);
+            }
+            for (auto& h : g.holes) {
+                Polyline ph = h;
+                for (auto& pt : ph) {
+                    pt.x += refOff.x;
+                    pt.y += refOff.y;
+                }
+                nfpPolys.push_back(ph);
+            }
+        }
+
+        bestSP.candidatePolys = std::move(candPolys);
+        bestSP.nfpPolys = std::move(nfpPolys);
+    }
 
     if (useBL) {
         std::sort(validCands.begin(), validCands.end(), [](const NestPoint& a, const NestPoint& b) {

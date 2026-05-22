@@ -1,7 +1,7 @@
 #ifndef NESTER_COMMON_H
 #define NESTER_COMMON_H
 
-#include "nfpplacer.h"
+#include "nfp_placer.h"
 #include "shapes/s_box.hpp"
 #include "shapes/utiltool.h"
 #include <cmath>
@@ -124,11 +124,17 @@ inline std::vector<NfpGroup> computeNfpsForMoving(const NestPoly& moving,
                                                    int method)
 {
     std::vector<NfpGroup> result;
+    if (moving.size() < 3 || placed.empty())
+        return result;
+
     NestPoint refOffset = moving[0];
 
     for (const auto& p : placed) {
         NestPoly fixed = p.polygon;
         fixed.translate(p.offset);
+        if (fixed.size() < 3)
+            continue;
+
         NfpPlacer placer(fixed, moving);
         switch (method) {
         case 0:

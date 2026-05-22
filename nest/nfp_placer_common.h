@@ -1,7 +1,7 @@
-#ifndef NFPPLACER_COMMON_H
-#define NFPPLACER_COMMON_H
+#ifndef NFP_PLACER_COMMON_H
+#define NFP_PLACER_COMMON_H
 
-#include "nfpplacer.h"
+#include "nfp_placer.h"
 #include "shapes/utiltool.h"
 
 #include <algorithm>
@@ -769,4 +769,4 @@ inline std::vector<NfpPolyline> moveTouchingPointToRingStart(const std::vector<N
 }
 }
 
-#endif // NFPPLACER_COMMON_H
+#endif // NFP_PLACER_COMMON_H

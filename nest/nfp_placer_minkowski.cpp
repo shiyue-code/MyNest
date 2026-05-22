@@ -1,4 +1,4 @@
-#include "nfpplacer_common.h"
+#include "nfp_placer_common.h"
 
 #include <QDebug>
 
@@ -12,9 +12,9 @@ void NfpPlacer::execMinkowski()
         return;
     nfps.clear();
 
-    Polyline fixed = polyA;
-    Polyline moving = polyB;
-    if (!normalizeNfpInputs(polyA, polyB, fixed, moving)) {
+    Polyline fixed = fixedPolygon;
+    Polyline moving = movingPolygon;
+    if (!normalizeNfpInputs(fixedPolygon, movingPolygon, fixed, moving)) {
         isExecute = true;
         return;
     }

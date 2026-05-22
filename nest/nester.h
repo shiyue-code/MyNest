@@ -1,7 +1,8 @@
 #ifndef NESTER_H
 #define NESTER_H
 
-#include "nfpplacer.h"
+#include "nest_scene.h"
+#include "nfp_placer.h"
 #include "shapes/s_box.hpp"
 #include <QObject>
 #include <vector>
@@ -23,6 +24,11 @@ public:
         Polyline polygon;
         Point offset;
         double rotation = 0;
+        int pieceIndex = -1;
+        int pieceId = -1;
+        int prototypeId = -1;
+        QString prototypeName;
+        QColor color;
     };
 
     struct Config {
@@ -36,17 +42,22 @@ public:
         bool enableBLF = true;
         bool enableSA = true;
         int saIterations = 500;
+        int saCandidateLimit = 80;
+        int saSlideCandidateLimit = 20;
+        int saUpdateInterval = 50;
     };
 
     explicit Nester(QObject* parent = nullptr);
 
     void setStock(double width, double height);
     void setPolygons(const std::vector<Polyline>& polys);
-    void setConfig(const Config& cfg);
+    void setScene(const NestScene& newScene);
+    void setConfig(const Config& newConfig);
 
     void execBL();
     void execGreedy();
 
+    const NestScene& getScene() const;
     std::vector<Placement> getPlacements() const;
     std::vector<Polyline> getPlacedPolygons() const;
     Polyline getStock() const;
@@ -60,6 +71,7 @@ signals:
     void candidatesReady(const std::vector<Polyline>& candidates,
                          const std::vector<Polyline>& nfps,
                          const Polyline& currentPiece);
+    void placementProgress(int processedPieces, int totalPieces);
     void saProgress(int iteration, int totalIterations);
     void phaseChanged(const QString& phase);
     void finished();
@@ -87,10 +99,12 @@ private:
 
     Box2D computePlacedBBox(const std::vector<Placement>& placed) const;
     double computePlacedArea(const std::vector<Placement>& placed) const;
+    Placement makePlacement(int polygonIndex, const Polyline& poly, const Point& offset, double rotation) const;
 
     ScoredPosition evaluateRotation(const Polyline& poly, double rot,
                                     const std::vector<Placement>& placed,
-                                    bool useBL);
+                                    bool useBL,
+                                    bool collectPreview = true);
 
     std::vector<Point> sampleNfpBoundary(const std::vector<Polyline>& nfps, double step) const;
     std::vector<Point> blfFill(const Polyline& poly, const std::vector<Placement>& placed) const;
@@ -100,6 +114,8 @@ private:
 
     std::vector<Polyline> polygons;
     std::vector<Placement> placements;
+    NestScene scene;
+    std::vector<PieceInstance> pieceInstances;
     Config config;
     mutable std::mt19937 rng{std::random_device{}()};
 };

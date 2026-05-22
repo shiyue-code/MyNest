@@ -1,14 +1,22 @@
 ﻿#include "widget.h"
 
+#include <QAbstractItemView>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QDebug>
+#include <QHeaderView>
+#include <QSignalBlocker>
+#include <QTableWidgetItem>
 #include <QThread>
+
+#include <algorithm>
+#include <cmath>
 
 #include "shapes/s_point.hpp"
 #include "shapes/s_polyline.hpp"
 #include "ui_widget.h"
 
-#include "nest/nfpplacer.h"
+#include "nest/nfp_placer.h"
 #include "nest/nester.h"
 #include "shapes/utiltool.h"
 #include "view/nestwindow.h"
@@ -32,6 +40,21 @@ void debugPrintPolyline(const QString& name, const MyCtrlView::Polyline& poly)
     }
 }
 
+QTableWidgetItem* makeReadOnlyItem(const QString& text)
+{
+    auto* item = new QTableWidgetItem(text);
+    item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    return item;
+}
+
+QTableWidgetItem* makeColorItem(const QColor& color)
+{
+    auto* item = makeReadOnlyItem(color.name(QColor::HexRgb));
+    item->setBackground(color);
+    item->setForeground(color.lightness() < 128 ? Qt::white : Qt::black);
+    return item;
+}
+
 }
 
 Widget::Widget(QWidget* parent)
@@ -40,15 +63,25 @@ Widget::Widget(QWidget* parent)
 {
     ui->setupUi(this);
 
-    auto p1 = GetTestP1();
-    auto p2 = GetTestP2();
-    ui->openGLWidget->setPolyline(p1, p2);
+    auto fixedPolygon = createDefaultFixedPolygon();
+    auto movingPolygon = createDefaultMovingPolygon();
+    ui->openGLWidget->setPolyline(fixedPolygon, movingPolygon);
+    ui->comboNfpMethod->setCurrentIndex(1);
 
     connect(ui->btnDrawP1, SIGNAL(clicked()), this, SLOT(onDrawP1()));
     connect(ui->btnDrawP2, SIGNAL(clicked()), this, SLOT(onDrawP2()));
     connect(ui->btnExec, SIGNAL(clicked()), this, SLOT(onExec()));
     connect(ui->btnNest, SIGNAL(clicked()), this, SLOT(onNest()));
+    connect(ui->btnAddShape, SIGNAL(clicked()), this, SLOT(onAddShape()));
+    connect(ui->btnRemoveShape, SIGNAL(clicked()), this, SLOT(onRemoveShape()));
+    connect(ui->btnClearShapes, SIGNAL(clicked()), this, SLOT(onClearShapes()));
     connect(&timer, SIGNAL(timeout()), this, SLOT(onTimer()));
+
+    ui->tblShapes->horizontalHeader()->setStretchLastSection(true);
+    ui->tblShapes->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    ui->tblShapes->verticalHeader()->setVisible(false);
+    ui->tblShapes->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+    refreshShapeTable();
 }
 
 Widget::~Widget()
@@ -57,11 +90,11 @@ Widget::~Widget()
     if (nestThread) {
         nestThread->quit();
         nestThread->wait();
-        delete nestThread;
-        nestThread = nullptr;
     }
     delete nester;
     nester = nullptr;
+    delete nestThread;
+    nestThread = nullptr;
     delete ui;
 }
 
@@ -79,21 +112,157 @@ void Widget::onDrawP2()
     ui->openGLWidget->setMode(DrawPolyline2);
 }
 
+QColor Widget::colorForShape(int index) const
+{
+    static const QColor colors[] = {
+        QColor("#4C78A8"),
+        QColor("#F58518"),
+        QColor("#54A24B"),
+        QColor("#E45756"),
+        QColor("#72B7B2"),
+        QColor("#B279A2"),
+        QColor("#FF9DA6"),
+        QColor("#9D755D")
+    };
+    return colors[index % (sizeof(colors) / sizeof(colors[0]))];
+}
+
+void Widget::addShapePrototype(const QString& name, const Polyline& polygon, int quantity)
+{
+    Polyline contour = polygon;
+    S_Shape2D::cleanPolygon(contour);
+    if (contour.size() < 3) {
+        qDebug() << "Cannot add invalid shape" << name;
+        return;
+    }
+
+    if (contour.orientation() == Polyline::Clockwise)
+        contour.reverse();
+
+    S_Shape2D::ShapePrototype prototype;
+    prototype.id = nextPrototypeId++;
+    prototype.name = name;
+    prototype.contour = contour;
+    prototype.color = colorForShape(static_cast<int>(shapeLibrary.size()));
+    prototype.quantity = std::max(1, quantity);
+    prototype.enabled = true;
+
+    shapeLibrary.push_back(prototype);
+    refreshShapeTable();
+}
+
+void Widget::refreshShapeTable()
+{
+    QSignalBlocker blocker(ui->tblShapes);
+    ui->tblShapes->setRowCount(static_cast<int>(shapeLibrary.size()));
+    ui->tblShapes->setColumnCount(5);
+    ui->tblShapes->setHorizontalHeaderLabels({
+        QString::fromWCharArray(L"\u56FE\u5F62"),
+        QString::fromWCharArray(L"\u6570\u91CF"),
+        QString::fromWCharArray(L"\u9762\u79EF"),
+        QString::fromWCharArray(L"\u9876\u70B9"),
+        QString::fromWCharArray(L"\u989C\u8272")
+    });
+
+    for (int row = 0; row < static_cast<int>(shapeLibrary.size()); ++row) {
+        const auto& prototype = shapeLibrary[row];
+        auto* quantityItem = new QTableWidgetItem(QString::number(prototype.quantity));
+        quantityItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable);
+        ui->tblShapes->setItem(row, 0, makeReadOnlyItem(prototype.name));
+        ui->tblShapes->setItem(row, 1, quantityItem);
+        ui->tblShapes->setItem(row, 2, makeReadOnlyItem(QString::number(std::fabs(prototype.contour.area()), 'f', 1)));
+        ui->tblShapes->setItem(row, 3, makeReadOnlyItem(QString::number(prototype.contour.size())));
+        ui->tblShapes->setItem(row, 4, makeColorItem(prototype.color));
+    }
+}
+
+void Widget::syncShapeLibraryFromTable()
+{
+    for (int row = 0; row < ui->tblShapes->rowCount() && row < static_cast<int>(shapeLibrary.size()); ++row) {
+        if (!ui->tblShapes->item(row, 1))
+            continue;
+
+        bool ok = false;
+        int quantity = ui->tblShapes->item(row, 1)->text().toInt(&ok);
+        shapeLibrary[row].quantity = ok ? std::max(0, quantity) : shapeLibrary[row].quantity;
+    }
+}
+
+S_Shape2D::NestScene Widget::buildNestSceneFromUi()
+{
+    syncShapeLibraryFromTable();
+
+    S_Shape2D::NestScene scene;
+    scene.stockWidth = ui->spinStockW->value();
+    scene.stockHeight = ui->spinStockH->value();
+
+    if (shapeLibrary.empty())
+        qDebug() << "Please add shapes to the shape library before nesting";
+
+    scene.prototypes = shapeLibrary;
+
+    scene.pieces = S_Shape2D::expandScenePieces(scene);
+    return scene;
+}
+
+Widget::Polyline Widget::selectedSourcePolygon(QString* sourceName)
+{
+    Polyline fixedPolygon;
+    Polyline movingPolygon;
+    ui->openGLWidget->getPolyline(fixedPolygon, movingPolygon);
+
+    if (ui->comboShapeSource->currentIndex() == 0) {
+        if (sourceName)
+            *sourceName = ui->comboShapeSource->currentText();
+        return fixedPolygon;
+    }
+
+    if (sourceName)
+        *sourceName = ui->comboShapeSource->currentText();
+    return movingPolygon;
+}
+
+void Widget::onAddShape()
+{
+    QString sourceName;
+    Polyline polygon = selectedSourcePolygon(&sourceName);
+    addShapePrototype(QString("%1-%2").arg(sourceName).arg(nextPrototypeId),
+                      polygon,
+                      ui->spinShapeCount->value());
+}
+
+void Widget::onRemoveShape()
+{
+    int row = ui->tblShapes->currentRow();
+    if (row < 0 || row >= static_cast<int>(shapeLibrary.size()))
+        return;
+
+    shapeLibrary.erase(shapeLibrary.begin() + row);
+    refreshShapeTable();
+}
+
+void Widget::onClearShapes()
+{
+    shapeLibrary.clear();
+    refreshShapeTable();
+}
+
 void Widget::onExec()
 {
-    MyCtrlView::Polyline p1, p2;
-    ui->openGLWidget->getPolyline(p1, p2);
-    if(MyCtrlView::Polyline::Clockwise == p1.orientation())
-        p1.reverse();
-    S_Shape2D::cleanPolygon(p1);
-    S_Shape2D::cleanPolygon(p2);
+    MyCtrlView::Polyline fixedPolygon;
+    MyCtrlView::Polyline movingPolygon;
+    ui->openGLWidget->getPolyline(fixedPolygon, movingPolygon);
+    if(MyCtrlView::Polyline::Clockwise == fixedPolygon.orientation())
+        fixedPolygon.reverse();
+    S_Shape2D::cleanPolygon(fixedPolygon);
+    S_Shape2D::cleanPolygon(movingPolygon);
 
-    if(MyCtrlView::Polyline::Clockwise == p2.orientation())
-        p2.reverse();
-    S_Shape2D::NfpPlacer placer(p1, p2);
+    if(MyCtrlView::Polyline::Clockwise == movingPolygon.orientation())
+        movingPolygon.reverse();
+    S_Shape2D::NfpPlacer placer(fixedPolygon, movingPolygon);
 
-    debugPrintPolyline("P1", p1);
-    debugPrintPolyline("P2", p2);
+    debugPrintPolyline("P1", fixedPolygon);
+    debugPrintPolyline("P2", movingPolygon);
 
     QElapsedTimer t;
     t.start();
@@ -106,7 +275,7 @@ void Widget::onExec()
     }
     qDebug() << ui->comboNfpMethod->currentText() << u8"NFP calculate takes " << t.elapsed() <<"ms";
 
-    ui->openGLWidget->setPolyline(p1, p2);
+    ui->openGLWidget->setPolyline(fixedPolygon, movingPolygon);
     ui->openGLWidget->setNFPs(placer.getNFPs());
     ui->openGLWidget->startNfpAnimation();
     timer.start(30);
@@ -114,53 +283,39 @@ void Widget::onExec()
 
 void Widget::onNest()
 {
-    MyCtrlView::Polyline p1, p2;
-    ui->openGLWidget->getPolyline(p1, p2);
-    S_Shape2D::cleanPolygon(p1);
-    S_Shape2D::cleanPolygon(p2);
+    S_Shape2D::NestScene scene = buildNestSceneFromUi();
 
-    int p1Count = ui->spinP1Count->value();
-    int p2Count = ui->spinP2Count->value();
-
-    if ((p1Count > 0 && p1.size() < 3) || (p2Count > 0 && p2.size() < 3)) {
-        qDebug() << "Need valid P1 and P2 polygons for nesting";
-        return;
-    }
-
-    if (p1Count == 0 && p2Count == 0) {
+    if (scene.pieces.empty()) {
         qDebug() << "No pieces to nest";
         return;
     }
 
-    std::vector<MyCtrlView::Polyline> pieces;
-    for (int i = 0; i < p1Count; ++i)
-        pieces.push_back(p1);
-    for (int i = 0; i < p2Count; ++i)
-        pieces.push_back(p2);
-
-    qDebug() << "Nesting" << p1Count << "x P1 +" << p2Count << "x P2 =" << pieces.size() << "pieces";
+    qDebug() << "Nesting scene prototypes:" << scene.prototypes.size()
+             << "pieces:" << scene.pieces.size();
 
     if (nestThread) {
         nestThread->quit();
         nestThread->wait();
-        delete nestThread;
     }
     delete nester;
+    nester = nullptr;
+    delete nestThread;
+    nestThread = nullptr;
 
     nester = new S_Shape2D::Nester;
+    auto* worker = nester;
     nester->setStock(ui->spinStockW->value(), ui->spinStockH->value());
-    nester->setPolygons(pieces);
 
-    S_Shape2D::Nester::Config cfg;
-    cfg.stockWidth = ui->spinStockW->value();
-    cfg.stockHeight = ui->spinStockH->value();
-    cfg.nfpMethod = ui->comboNfpMethod->currentIndex();
-    cfg.allowRotation = ui->chkRotation->isChecked();
-    cfg.rotationSteps = ui->spinRotSteps->value();
-    cfg.enableBacktrack = ui->chkBacktrack->isChecked();
-    cfg.enableBLF = ui->chkBLF->isChecked();
-    cfg.enableSA = ui->chkSA->isChecked();
-    nester->setConfig(cfg);
+    S_Shape2D::Nester::Config nestConfig;
+    nestConfig.stockWidth = ui->spinStockW->value();
+    nestConfig.stockHeight = ui->spinStockH->value();
+    nestConfig.nfpMethod = ui->comboNfpMethod->currentIndex();
+    nestConfig.allowRotation = ui->chkRotation->isChecked();
+    nestConfig.rotationSteps = ui->spinRotSteps->value();
+    nestConfig.enableBLF = ui->chkBLF->isChecked();
+    nestConfig.enableSA = ui->chkSA->isChecked();
+    nester->setConfig(nestConfig);
+    nester->setScene(scene);
 
     qRegisterMetaType<PolylineList>("PolylineList");
     qRegisterMetaType<S_Shape2D::Polyline2D>("S_Shape2D::Polyline2D");
@@ -169,14 +324,18 @@ void Widget::onNest()
         nestWindow = new NestWindow(this);
 
     auto stockPoly = nester->getStock();
-    nestWindow->beginNest(stockPoly, pieces.size(), cfg.enableSA ? cfg.saIterations : 0);
+    nestWindow->beginNest(stockPoly, scene, static_cast<int>(scene.pieces.size()),
+                          nestConfig.enableSA ? nestConfig.saIterations : 0);
 
     connect(nester, &S_Shape2D::Nester::stepCompleted,
             this, [this](const std::vector<MyCtrlView::Polyline>& placed,
                          const MyCtrlView::Polyline& /*stock*/,
-                         double utilization, int /*pieceIndex*/) {
+                         double utilization, int pieceIndex) {
         if (!placed.empty()) {
-            nestWindow->addPlacedPiece(placed.back(), utilization);
+            if (pieceIndex >= 0)
+                nestWindow->addPlacedPiece(placed.back(), utilization, pieceIndex);
+            else
+                nestWindow->setPlacedPieces(placed, utilization);
         }
     }, Qt::QueuedConnection);
 
@@ -185,6 +344,11 @@ void Widget::onNest()
                          const std::vector<MyCtrlView::Polyline>& nfps,
                          const MyCtrlView::Polyline& currentPiece) {
         nestWindow->showCandidates(candidates, nfps, currentPiece);
+    }, Qt::QueuedConnection);
+
+    connect(nester, &S_Shape2D::Nester::placementProgress,
+            this, [this](int processedPieces, int totalPieces) {
+        nestWindow->setPlacementProgress(processedPieces, totalPieces);
     }, Qt::QueuedConnection);
 
     connect(nester, &S_Shape2D::Nester::saProgress,
@@ -198,9 +362,12 @@ void Widget::onNest()
     }, Qt::QueuedConnection);
 
     connect(nester, &S_Shape2D::Nester::finished,
-            this, [this]() {
-        double util = nester->getUtilization();
-        auto placed = nester->getPlacedPolygons();
+            this, [this, worker]() {
+        if (worker != nester)
+            return;
+
+        double util = worker->getUtilization();
+        auto placed = worker->getPlacedPolygons();
         qDebug() << "Placed" << placed.size() << "pieces, utilization:"
                  << QString::number(util, 'f', 1) << "%";
         ui->lblUtilization->setText(QString("利用率: %1%").arg(util, 0, 'f', 1));
@@ -215,15 +382,15 @@ void Widget::onNest()
     nestThread = new QThread;
     nester->moveToThread(nestThread);
 
-    connect(nestThread, &QThread::started, nester, [this, useBL]() {
+    connect(nestThread, &QThread::started, nester, [worker, useBL]() {
         QElapsedTimer t;
         t.start();
         if (useBL)
-            nester->execBL();
+            worker->execBL();
         else
-            nester->execGreedy();
+            worker->execGreedy();
         qDebug() << "Nesting took" << t.elapsed() << "ms";
-        emit nester->finished();
+        emit worker->finished();
     });
 
     connect(nester, &S_Shape2D::Nester::finished, nestThread, &QThread::quit);
@@ -238,21 +405,22 @@ void Widget::onTimer()
 
 void Widget::OnSave()
 {
-    MyCtrlView::Polyline p1, p2;
-    ui->openGLWidget->getPolyline(p1, p2);
-    S_Shape2D::cleanPolygon(p1);
-    S_Shape2D::cleanPolygon(p2);
+    MyCtrlView::Polyline fixedPolygon;
+    MyCtrlView::Polyline movingPolygon;
+    ui->openGLWidget->getPolyline(fixedPolygon, movingPolygon);
+    S_Shape2D::cleanPolygon(fixedPolygon);
+    S_Shape2D::cleanPolygon(movingPolygon);
     QFile file(qApp->applicationDirPath()+"/SaveShape.txt");
     if(file.open(QIODevice::WriteOnly))
     {
         QDataStream stream(&file);
-        stream << QString("Shape_P1") << p1.size();
-        for(auto iter =  p1.begin() ;iter!=p1.end(); iter++ )
+        stream << QString("Shape_P1") << fixedPolygon.size();
+        for(auto iter =  fixedPolygon.begin() ;iter!=fixedPolygon.end(); iter++ )
         {
             stream << (*iter).x<<(*iter).y;
         }
-        stream << QString("Shape_P2") << p2.size();
-        for(auto iter =  p2.begin() ;iter!=p2.end(); iter++ )
+        stream << QString("Shape_P2") << movingPolygon.size();
+        for(auto iter =  movingPolygon.begin() ;iter!=movingPolygon.end(); iter++ )
         {
             stream << (*iter).x<<(*iter).y;
         }
@@ -267,7 +435,8 @@ void Widget::OnSave()
 
 void Widget::OnLoad(const QString& absoluteFilePath)
 {
-    MyCtrlView::Polyline p1, p2;
+    MyCtrlView::Polyline fixedPolygon;
+    MyCtrlView::Polyline movingPolygon;
     QFile file(absoluteFilePath.isNull()?qApp->applicationDirPath()+"/SaveShape.txt":absoluteFilePath);
     if(file.open(QIODevice::ReadOnly))
     {
@@ -279,13 +448,13 @@ void Widget::OnLoad(const QString& absoluteFilePath)
         for(size_t i =0;i<shapeSize;i++)
         {
             stream >> pt.x >> pt.y;
-            p1.insert(pt);
+            fixedPolygon.insert(pt);
         }
         stream >> shapeIndex >> shapeSize;
         for(size_t i =0;i<shapeSize;i++)
         {
             stream >> pt.x >> pt.y;
-            p2.insert(pt);
+            movingPolygon.insert(pt);
         }
         file.close();
     }
@@ -294,5 +463,5 @@ void Widget::OnLoad(const QString& absoluteFilePath)
         file.close();
         qDebug()<<u8"文件打开的时候出现错误 " << file.errorString();
     }
-    ui->openGLWidget->setPolyline(p1, p2);
+    ui->openGLWidget->setPolyline(fixedPolygon, movingPolygon);
 }

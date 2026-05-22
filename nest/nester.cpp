@@ -28,12 +28,51 @@ void Nester::setStock(double width, double height)
 void Nester::setPolygons(const std::vector<Polyline>& polys)
 {
     polygons = polys;
+    pieceInstances.clear();
+    pieceInstances.reserve(polygons.size());
+    scene = NestScene{};
+    scene.stockWidth = config.stockWidth;
+    scene.stockHeight = config.stockHeight;
+    for (size_t i = 0; i < polygons.size(); ++i) {
+        PieceInstance piece;
+        piece.id = static_cast<int>(i);
+        piece.prototypeId = -1;
+        pieceInstances.push_back(piece);
+    }
     placements.clear();
 }
 
-void Nester::setConfig(const Config& cfg)
+void Nester::setScene(const NestScene& newScene)
 {
-    config = cfg;
+    scene = newScene;
+    if (scene.stockWidth > 0 && scene.stockHeight > 0) {
+        config.stockWidth = scene.stockWidth;
+        config.stockHeight = scene.stockHeight;
+    }
+
+    pieceInstances = scene.pieces.empty() ? expandScenePieces(scene) : scene.pieces;
+    polygons.clear();
+
+    std::vector<PieceInstance> validPieces;
+    validPieces.reserve(pieceInstances.size());
+    for (const auto& piece : pieceInstances) {
+        const ShapePrototype* prototype = findPrototype(scene, piece.prototypeId);
+        if (!prototype || !prototype->enabled || prototype->contour.size() < 3)
+            continue;
+
+        polygons.push_back(prototype->contour);
+        validPieces.push_back(piece);
+    }
+
+    pieceInstances = std::move(validPieces);
+    placements.clear();
+}
+
+void Nester::setConfig(const Config& newConfig)
+{
+    config = newConfig;
+    scene.stockWidth = config.stockWidth;
+    scene.stockHeight = config.stockHeight;
 }
 
 Nester::Polyline Nester::buildStockPolyline() const
@@ -159,7 +198,11 @@ Nester::ScoredPosition Nester::evaluatePosition(const Polyline& poly, const Poin
     sp.pos = pos;
     sp.rotation = rotation;
     std::vector<Placement> testPlaced = placed;
-    testPlaced.push_back({poly, pos, rotation});
+    Placement testPlacement;
+    testPlacement.polygon = poly;
+    testPlacement.offset = pos;
+    testPlacement.rotation = rotation;
+    testPlaced.push_back(testPlacement);
     Box2D bbox = computePlacedBBox(testPlaced);
     double bboxArea = bbox.width() * bbox.height();
     double contact = edgeContactLength(poly, pos, placed);
@@ -188,6 +231,34 @@ double Nester::computePlacedArea(const std::vector<Placement>& placed) const
         area += std::fabs(poly.area());
     }
     return area;
+}
+
+Nester::Placement Nester::makePlacement(int polygonIndex, const Polyline& poly,
+                                        const Point& offset, double rotation) const
+{
+    Placement placement;
+    placement.polygon = poly;
+    placement.offset = offset;
+    placement.rotation = rotation;
+    placement.pieceIndex = polygonIndex;
+
+    if (polygonIndex >= 0 && polygonIndex < static_cast<int>(pieceInstances.size())) {
+        const PieceInstance& piece = pieceInstances[polygonIndex];
+        placement.pieceId = piece.id;
+        placement.prototypeId = piece.prototypeId;
+
+        if (const ShapePrototype* prototype = findPrototype(scene, piece.prototypeId)) {
+            placement.prototypeName = prototype->name;
+            placement.color = prototype->color;
+        }
+    }
+
+    return placement;
+}
+
+const NestScene& Nester::getScene() const
+{
+    return scene;
 }
 
 std::vector<Nester::Placement> Nester::getPlacements() const

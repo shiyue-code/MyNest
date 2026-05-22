@@ -39,12 +39,12 @@ QtCalcauteNFPs 是一个用于二维不规则多边形 NFP（No-Fit Polygon，�
 
 NFP 相关代码已按算法拆分：
 
-- `nest/nfpplacer.h`：NFP 计算器接口。
-- `nest/nfpplacer.cpp`：基础构造、数据设置和结果获取。
-- `nest/nfpplacer_common.h`：共享几何工具、候选段生成、线段切分、环提取、后处理。
-- `nest/nfpplacer_moving.cpp`：移动碰撞法实现。
-- `nest/nfpplacer_vector.cpp`：矢量段法实现。
-- `nest/nfpplacer_minkowski.cpp`：Minkowski 法实现。
+- `nest/nfp_placer.h`：NFP 计算器接口。
+- `nest/nfp_placer.cpp`：基础构造、数据设置和结果获取。
+- `nest/nfp_placer_common.h`：共享几何工具、候选段生成、线段切分、环提取、后处理。
+- `nest/nfp_placer_moving.cpp`：移动碰撞法实现。
+- `nest/nfp_placer_vector.cpp`：矢量段法实现。
+- `nest/nfp_placer_minkowski.cpp`：Minkowski 法实现。
 - `view/myctrlview.*`：NFP 绘制、动画和参考点显示。
 - `widget.*`：界面逻辑、算法选择和调试输出。
 

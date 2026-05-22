@@ -1,155 +1,99 @@
-#ifndef MATH_H
-#define MATH_H
+#ifndef S_MATH_H
+#define S_MATH_H
 
 #include <cmath>
 #include <limits>
+#include <numeric>
 #include <type_traits>
 
-#include "s_common.hpp"
 #include "s_def.h"
-
-#include <QDebug>
 
 namespace S_Shape2D {
 
-constexpr double pi = 3.141592653589793238462643383279; // pi
-constexpr double piX2 = pi * 2; //2*PI
-constexpr double pi_2 = pi / 2; //2*PI
+constexpr double pi = 3.141592653589793238462643383279;
+constexpr double piX2 = pi * 2;
+constexpr double pi_2 = pi / 2;
 
 class Math {
 public:
-    template<class Type>
-    inline static Type correctAngle(Type a)
+    template <class Type>
+    static Type correctAngle(Type angle)
     {
-        return fmod(pi + remainder(a - pi, piX2), piX2);
+        return std::fmod(pi + std::remainder(angle - pi, piX2), piX2);
     }
 
-    template<class Type>
-    inline static Type multiply(Type a, Type b)
+    template <class Type>
+    static Type multiply(Type lhs, Type rhs)
     {
-        return a*b;
+        return lhs * rhs;
     }
 
-    template<class Type>
-    inline static Type cos(Type a)
+    template <class Type>
+    static Type cos(Type value)
     {
-        return std::cos(a);
+        return std::cos(value);
     }
 
-    template<class Type>
-    inline static Type sin(Type a)
+    template <class Type>
+    static Type sin(Type value)
     {
-        return std::sin(a);
+        return std::sin(value);
     }
 
-    template<class Type>
-    inline static Type atan(Type a)
+    template <class Type>
+    static Type atan(Type value)
     {
-        return std::atan(a);
+        return std::atan(value);
     }
 
-    template<class Type>
-    inline static Type atan2(Type x, Type y)
+    template <class Type>
+    static Type atan2(Type y, Type x)
     {
-        return std::atan2(x, y);
+        return std::atan2(y, x);
     }
 };
 
 template <class T>
 struct FastGCD {
     typename std::enable_if<std::is_integral<T>::value, T>::type
-    operator()(T x, T y)
+    operator()(T lhs, T rhs) const
     {
-        x = abs(x);
-        y = abs(y);
-        T deep = 1;
-        while (y != 0) {
-            if (x < y) {
-                x ^= y;
-                y ^= x;
-                x ^= y;
-                continue;
-            }
-
-            if ((x & 0x01) == 0) {
-                if ((y & 0x01) == 0) {
-                    y >>= 1;
-                    x >>= 1;
-                    deep <<= 1;
-                } else {
-                    x >>= 1;
-                }
-            } else {
-                if ((y & 0x01) == 0) {
-                    y >>= 1;
-
-                } else {
-                    T tmp = x - y;
-                    x = y;
-                    y = tmp;
-                }
-            }
-        }
-        return deep * x;
+        return std::gcd(lhs, rhs);
     }
 };
 
-// A very simple representation of an unnormalized rational number.
-// The sign of the denominator is still normalized to be always positive.
-
 struct flag_floating {
 };
+
 struct flag_integral {
 };
 
 template <class T1, class GCD = FastGCD<T1>, class T2 = T1>
 class Rational {
-
     using T = typename std::enable_if<std::is_integral<T1>::value, T1>::type;
     using TD = typename std::enable_if<std::is_integral<T2>::value, T2>::type;
-    T num;
-    T den = 1;
-
-    inline void normsign()
-    {
-        if (den < 0) {
-            den = -den;
-            num = -num;
-        }
-    }
-    inline void normalize()
-    {
-        T n = GCD()(num, den);
-        num /= n;
-        den /= n;
-    }
 
 public:
-    inline Rational()
-        : num(T(0))
-        , den(T(1))
-    {
-    }
+    Rational() = default;
 
     template <typename ValueT, typename = typename std::enable_if<std::is_integral<ValueT>::value>::type>
-    inline Rational(ValueT d, flag_floating = {})
-        : num((T)d)
-        , den(1)
+    Rational(ValueT value, flag_floating = {})
+        : num(static_cast<T>(value))
     {
     }
 
     template <typename ValueT, typename = typename std::enable_if<std::is_floating_point<ValueT>::value>::type>
-    inline Rational(ValueT d, flag_integral = {})
-        : num(T((d + std::numeric_limits<ValueT>::epsilon()) * pow(10, std::numeric_limits<ValueT>::digits10)))
-        , den(TD(pow(10, std::numeric_limits<ValueT>::digits10)))
+    Rational(ValueT value, flag_integral = {})
+        : num(T((value + std::numeric_limits<ValueT>::epsilon()) * std::pow(10, std::numeric_limits<ValueT>::digits10)))
+        , den(TD(std::pow(10, std::numeric_limits<ValueT>::digits10)))
     {
         normsign();
         normalize();
     }
 
-    inline explicit Rational(T n, T d)
-        : num(n)
-        , den(d)
+    explicit Rational(T numerator, T denominator)
+        : num(numerator)
+        , den(denominator)
     {
         normsign();
         normalize();
@@ -157,151 +101,177 @@ public:
 
     operator double() const
     {
-        return ((double)num) / (double)den;
+        return static_cast<double>(num) / static_cast<double>(den);
     }
 
-    inline bool operator>(const Rational& o) const
+    bool operator>(const Rational& other) const
     {
-        return TD(o.den) * num > TD(den) * o.num;
+        return TD(other.den) * num > TD(den) * other.num;
     }
 
-    inline bool operator<(const Rational& o) const
+    bool operator<(const Rational& other) const
     {
-        return TD(o.den) * num < TD(den) * o.num;
+        return TD(other.den) * num < TD(den) * other.num;
     }
 
-    inline bool operator==(const Rational& o) const
+    bool operator==(const Rational& other) const
     {
-        return TD(o.den) * num == TD(den) * o.num;
+        return TD(other.den) * num == TD(den) * other.num;
     }
 
-    inline bool operator!=(const Rational& o) const { return !(*this == o); }
-
-    inline bool operator<=(const Rational& o) const
+    bool operator!=(const Rational& other) const
     {
-        return TD(o.den) * num <= TD(den) * o.num;
+        return !(*this == other);
     }
 
-    inline bool operator>=(const Rational& o) const
+    bool operator<=(const Rational& other) const
     {
-        return TD(o.den) * num >= TD(den) * o.num;
+        return !(*this > other);
     }
 
-    inline bool operator<(const T& v) const { return TD(num) < TD(v) * den; }
-    inline bool operator>(const T& v) const { return TD(num) > TD(v) * den; }
-    inline bool operator<=(const T& v) const { return TD(num) <= TD(v) * den; }
-    inline bool operator>=(const T& v) const { return TD(num) >= TD(v) * den; }
-
-    inline Rational& operator*=(const Rational& o)
+    bool operator>=(const Rational& other) const
     {
-        num *= o.num;
-        den *= o.den;
+        return !(*this < other);
+    }
+
+    bool operator<(const T& value) const { return TD(num) < TD(value) * den; }
+    bool operator>(const T& value) const { return TD(num) > TD(value) * den; }
+    bool operator<=(const T& value) const { return TD(num) <= TD(value) * den; }
+    bool operator>=(const T& value) const { return TD(num) >= TD(value) * den; }
+
+    Rational& operator*=(const Rational& other)
+    {
+        num *= other.num;
+        den *= other.den;
         normsign();
         normalize();
         return *this;
     }
 
-    inline Rational& operator/=(const Rational& o)
+    Rational& operator/=(const Rational& other)
     {
-        num *= o.den;
-        den *= o.num;
+        num *= other.den;
+        den *= other.num;
         normsign();
         normalize();
         return *this;
     }
 
-    inline Rational& operator+=(const Rational& o)
+    Rational& operator+=(const Rational& other)
     {
-        num = o.den * num + o.num * den;
-        den *= o.den;
+        num = other.den * num + other.num * den;
+        den *= other.den;
         normalize();
         return *this;
     }
 
-    inline Rational& operator-=(const Rational& o)
+    Rational& operator-=(const Rational& other)
     {
-        num = o.den * num - o.num * den;
-        den *= o.den;
+        num = other.den * num - other.num * den;
+        den *= other.den;
         normalize();
         return *this;
     }
 
-    inline Rational& operator*=(const T& v)
+    Rational& operator*=(const T& value)
     {
-        const T gcd = GCD()(v, den);
-        num *= v / gcd;
+        const T gcd = GCD()(value, den);
+        num *= value / gcd;
         den /= gcd;
+        normsign();
         return *this;
     }
 
-    inline Rational& operator/=(const T& v)
+    Rational& operator/=(const T& value)
     {
         if (num == T {})
             return *this;
 
-        // Avoid overflow and preserve normalization
-        const T gcd = GCD()(num, v);
+        const T gcd = GCD()(num, value);
         num /= gcd;
-        den *= v / gcd;
-
-        if (den < T {}) {
-            num = -num;
-            den = -den;
-        }
-
-        den *= v;
+        den *= value / gcd;
+        normsign();
         return *this;
     }
 
-    inline Rational& operator+=(const T& v)
+    Rational& operator+=(const T& value)
     {
-        num += v * den;
-        return *this;
-    }
-    inline Rational& operator-=(const T& v)
-    {
-        num -= v * den;
+        num += value * den;
         return *this;
     }
 
-    inline Rational operator*(const Rational& v) const
+    Rational& operator-=(const T& value)
+    {
+        num -= value * den;
+        return *this;
+    }
+
+    Rational operator*(const Rational& value) const
     {
         auto tmp = *this;
-        tmp *= v;
+        tmp *= value;
         return tmp;
     }
-    inline Rational operator/(const Rational& v) const
+
+    Rational operator/(const Rational& value) const
     {
         auto tmp = *this;
-        tmp /= v;
+        tmp /= value;
         return tmp;
     }
-    inline Rational operator+(const Rational& v) const
+
+    Rational operator+(const Rational& value) const
     {
         auto tmp = *this;
-        tmp += v;
+        tmp += value;
         return tmp;
     }
-    inline Rational operator-(const Rational& v) const
+
+    Rational operator-(const Rational& value) const
     {
         auto tmp = *this;
-        tmp -= v;
+        tmp -= value;
         return tmp;
     }
-    inline Rational operator-() const
+
+    Rational operator-() const
     {
         auto tmp = *this;
         tmp.num = -num;
         return tmp;
     }
 
-    inline T numerator() const { return num; }
-    inline T denominator() const { return den; }
+    T numerator() const { return num; }
+    T denominator() const { return den; }
+
+private:
+    void normsign()
+    {
+        if (den < 0) {
+            den = -den;
+            num = -num;
+        }
+    }
+
+    void normalize()
+    {
+        const T gcd = GCD()(num, den);
+        if (gcd == T {})
+            return;
+
+        num /= gcd;
+        den /= gcd;
+    }
+
+private:
+    T num = 0;
+    T den = 1;
 };
 
 using Rational64 = Rational<__int64>;
+
 }
 
 USE_S_(Rational64);
 
-#endif // MATH_H
+#endif // S_MATH_H
