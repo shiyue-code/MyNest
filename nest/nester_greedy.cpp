@@ -21,7 +21,9 @@ void Nester::execGreedy()
         indices[i] = i;
     sortByComplexity(indices);
 
-    qDebug() << "Greedy sorted:" << indices << "rotation steps:" << config.rotationSteps;
+    qDebug() << "Greedy sorted:" << indices
+             << "allow rotation:" << config.allowRotation
+             << "rotation steps:" << config.rotationSteps;
     emit phaseChanged(QString::fromWCharArray(L"  \u6392\u7248\u4E2D... \u653E\u7F6E\u9636\u6BB5"));
     emit placementProgress(0, static_cast<int>(indices.size()));
 
@@ -87,9 +89,8 @@ void Nester::execGreedy()
                 poly.reverse();
 
             bool inPlaced = false;
-            for (size_t pi = 0; pi < placements.size(); ++pi) {
-                if (std::fabs(placements[pi].polygon.area() - poly.area()) < 1e-6 &&
-                    placements[pi].polygon.size() == poly.size()) {
+            for (const auto& placement : placements) {
+                if (placement.pieceIndex == idx) {
                     inPlaced = true;
                     break;
                 }
@@ -100,9 +101,10 @@ void Nester::execGreedy()
             ScoredPosition bestGap;
             bestGap.score = 1e18;
             bool gapFound = false;
+            const auto gapRotations = getRotationAngles();
 
             for (auto& cand : gapCands) {
-                for (double rot : {0.0, M_PI / 2, M_PI, 3 * M_PI / 2}) {
+                for (double rot : gapRotations) {
                     NestPoly rotated = poly;
                     if (std::fabs(rot) > 1e-9)
                         rotated.rotate(rot);
@@ -140,6 +142,9 @@ void Nester::execGreedy()
         simulatedAnnealing(placements, config.saIterations);
         qDebug() << "SA done, util:" << getUtilization() << "%";
     }
+
+    if (hasOverlappingPlacements(placements))
+        qDebug() << "Greedy final overlap detected; candidate evaluation needs correction.";
 
     qDebug() << "Greedy took" << timer.elapsed() << "ms placed" << placements.size() << "/" << polygons.size();
 }

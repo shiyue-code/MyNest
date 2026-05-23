@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 #include "shapes/s_point.hpp"
 #include "shapes/s_polyline.hpp"
@@ -21,6 +22,10 @@
 #include "shapes/utiltool.h"
 #include "view/nestwindow.h"
 #include "test.h"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 typedef std::vector<S_Shape2D::Polyline2D> PolylineList;
 Q_DECLARE_METATYPE(PolylineList)
@@ -55,6 +60,146 @@ QTableWidgetItem* makeColorItem(const QColor& color)
     return item;
 }
 
+double cross(const S_Shape2D::Point2D& a, const S_Shape2D::Point2D& b, const S_Shape2D::Point2D& c)
+{
+    return (b - a).cross(c - a);
+}
+
+bool pointOnSegment(const S_Shape2D::Point2D& pt,
+                    const S_Shape2D::Point2D& a,
+                    const S_Shape2D::Point2D& b)
+{
+    if (std::fabs(cross(a, b, pt)) > 1e-7)
+        return false;
+
+    return pt.x >= std::min(a.x, b.x) - 1e-7
+        && pt.x <= std::max(a.x, b.x) + 1e-7
+        && pt.y >= std::min(a.y, b.y) - 1e-7
+        && pt.y <= std::max(a.y, b.y) + 1e-7;
+}
+
+bool segmentsIntersect(const S_Shape2D::Point2D& a0,
+                       const S_Shape2D::Point2D& a1,
+                       const S_Shape2D::Point2D& b0,
+                       const S_Shape2D::Point2D& b1)
+{
+    const double c1 = cross(a0, a1, b0);
+    const double c2 = cross(a0, a1, b1);
+    const double c3 = cross(b0, b1, a0);
+    const double c4 = cross(b0, b1, a1);
+
+    if (((c1 > 1e-7 && c2 < -1e-7) || (c1 < -1e-7 && c2 > 1e-7))
+        && ((c3 > 1e-7 && c4 < -1e-7) || (c3 < -1e-7 && c4 > 1e-7))) {
+        return true;
+    }
+
+    return pointOnSegment(b0, a0, a1)
+        || pointOnSegment(b1, a0, a1)
+        || pointOnSegment(a0, b0, b1)
+        || pointOnSegment(a1, b0, b1);
+}
+
+bool isSimplePolygon(const S_Shape2D::Polyline2D& poly)
+{
+    const size_t n = poly.size();
+    if (n < 3)
+        return false;
+
+    for (size_t i = 0; i < n; ++i) {
+        const size_t iNext = (i + 1) % n;
+        for (size_t j = i + 1; j < n; ++j) {
+            const size_t jNext = (j + 1) % n;
+            if (i == j || iNext == j || jNext == i)
+                continue;
+
+            if (segmentsIntersect(poly[i], poly[iNext], poly[j], poly[jNext]))
+                return false;
+        }
+    }
+
+    return true;
+}
+
+bool hasConcaveVertex(const S_Shape2D::Polyline2D& poly)
+{
+    const size_t n = poly.size();
+    if (n < 4)
+        return false;
+
+    const double sign = poly.area() >= 0.0 ? 1.0 : -1.0;
+    for (size_t i = 0; i < n; ++i) {
+        const auto& prev = poly[(i + n - 1) % n];
+        const auto& curr = poly[i];
+        const auto& next = poly[(i + 1) % n];
+        if (sign * cross(prev, curr, next) < -1e-7)
+            return true;
+    }
+    return false;
+}
+
+bool isValidGeneratedPolygon(const S_Shape2D::Polyline2D& poly, double minArea, double maxArea)
+{
+    const double area = std::fabs(poly.area());
+    if (poly.size() < 3 || area < minArea || area > maxArea || !isSimplePolygon(poly))
+        return false;
+
+    ClipperLib::Paths simplified;
+    ClipperLib::SimplifyPolygon(S_Shape2D::polygon2Path(poly), simplified, ClipperLib::pftNonZero);
+    int solidCount = 0;
+    for (const auto& path : simplified) {
+        if (path.size() >= 3 && std::fabs(ClipperLib::Area(path)) > 1.0)
+            ++solidCount;
+    }
+
+    return solidCount == 1;
+}
+
+S_Shape2D::Polyline2D makeRandomPolygon(std::mt19937& rng,
+                                        bool preferConcave,
+                                        double minArea,
+                                        double maxArea)
+{
+    std::uniform_int_distribution<int> vertexCountDist(5, 12);
+    std::uniform_real_distribution<double> radiusDist(22.0, 65.0);
+    std::uniform_real_distribution<double> angleJitterDist(-0.22, 0.22);
+    std::uniform_real_distribution<double> dentDist(0.32, 0.58);
+    std::uniform_real_distribution<double> offsetDist(-45.0, 45.0);
+    std::bernoulli_distribution dentChance(preferConcave ? 0.45 : 0.0);
+
+    for (int attempt = 0; attempt < 80; ++attempt) {
+        const int vertexCount = vertexCountDist(rng);
+        const double step = 2.0 * M_PI / vertexCount;
+        const double startAngle = std::uniform_real_distribution<double>(0.0, step)(rng);
+
+        S_Shape2D::Polyline2D polygon;
+        bool dented = false;
+        for (int i = 0; i < vertexCount; ++i) {
+            double radius = radiusDist(rng);
+            if (dentChance(rng)) {
+                radius *= dentDist(rng);
+                dented = true;
+            }
+
+            const double angle = startAngle + step * i + angleJitterDist(rng);
+            polygon.add({
+                std::cos(angle) * radius + offsetDist(rng) * 0.05,
+                std::sin(angle) * radius + offsetDist(rng) * 0.05
+            });
+        }
+
+        S_Shape2D::cleanPolygon(polygon);
+        if (polygon.orientation() == S_Shape2D::Polyline2D::Clockwise)
+            polygon.reverse();
+
+        if (!preferConcave || dented || hasConcaveVertex(polygon)) {
+            if (isValidGeneratedPolygon(polygon, minArea, maxArea))
+                return polygon;
+        }
+    }
+
+    return {};
+}
+
 }
 
 Widget::Widget(QWidget* parent)
@@ -73,6 +218,7 @@ Widget::Widget(QWidget* parent)
     connect(ui->btnExec, SIGNAL(clicked()), this, SLOT(onExec()));
     connect(ui->btnNest, SIGNAL(clicked()), this, SLOT(onNest()));
     connect(ui->btnAddShape, SIGNAL(clicked()), this, SLOT(onAddShape()));
+    connect(ui->btnGenerateRandomShapes, SIGNAL(clicked()), this, SLOT(onGenerateRandomShapes()));
     connect(ui->btnRemoveShape, SIGNAL(clicked()), this, SLOT(onRemoveShape()));
     connect(ui->btnClearShapes, SIGNAL(clicked()), this, SLOT(onClearShapes()));
     connect(&timer, SIGNAL(timeout()), this, SLOT(onTimer()));
@@ -229,6 +375,30 @@ void Widget::onAddShape()
     addShapePrototype(QString("%1-%2").arg(sourceName).arg(nextPrototypeId),
                       polygon,
                       ui->spinShapeCount->value());
+}
+
+void Widget::onGenerateRandomShapes()
+{
+    static std::mt19937 rng(std::random_device{}());
+
+    const int count = ui->spinRandomShapeCount->value();
+    const double minArea = std::min(ui->spinRandomMinArea->value(), ui->spinRandomMaxArea->value());
+    const double maxArea = std::max(ui->spinRandomMinArea->value(), ui->spinRandomMaxArea->value());
+    int generated = 0;
+    for (int i = 0; i < count; ++i) {
+        const bool preferConcave = (i % 2) == 1;
+        Polyline polygon = makeRandomPolygon(rng, preferConcave, minArea, maxArea);
+        if (polygon.size() < 3) {
+            qDebug() << "Random polygon generation skipped; area range may be too restrictive"
+                     << minArea << maxArea;
+            continue;
+        }
+        addShapePrototype(QString("Random-%1").arg(nextPrototypeId), polygon, 1);
+        ++generated;
+    }
+
+    qDebug() << "Generated" << generated << "/" << count
+             << "random legal polygons with area range" << minArea << maxArea;
 }
 
 void Widget::onRemoveShape()

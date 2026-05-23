@@ -5,6 +5,7 @@
 #include "shapes/s_box.hpp"
 #include "shapes/utiltool.h"
 #include <cmath>
+#include <utility>
 #include <vector>
 
 namespace S_Shape2D {
@@ -73,11 +74,29 @@ inline bool pointStrictlyInside(const NestPoint& pt, const NestPoly& poly)
 
 inline bool polysReallyOverlap(const NestPoly& a, const NestPoly& b)
 {
-    size_t na = a.size();
-    size_t nb = b.size();
     ClipperLib::Path pathA = polygon2Path(a);
     ClipperLib::Path pathB = polygon2Path(b);
 
+    ClipperLib::Clipper clipper;
+    clipper.StrictlySimple(true);
+    clipper.AddPath(pathA, ClipperLib::ptSubject, true);
+    clipper.AddPath(pathB, ClipperLib::ptClip, true);
+
+    ClipperLib::Paths intersections;
+    if (clipper.Execute(ClipperLib::ctIntersection,
+                        intersections,
+                        ClipperLib::pftNonZero,
+                        ClipperLib::pftNonZero)) {
+        constexpr double overlapAreaEps = 1e-6;
+        const double scaleArea = static_cast<double>(clipperScaler) * static_cast<double>(clipperScaler);
+        for (const auto& path : intersections) {
+            if (std::fabs(ClipperLib::Area(path)) / scaleArea > overlapAreaEps)
+                return true;
+        }
+    }
+
+    size_t na = a.size();
+    size_t nb = b.size();
     for (size_t i = 0; i < na; ++i) {
         NestPoint a0 = a[i];
         NestPoint a1 = a[(i + 1) % na];
@@ -116,6 +135,22 @@ inline bool overlapsAnyPlaced(const NestPoly& poly, const std::vector<Nester::Pl
         if (polysReallyOverlap(fixed, poly))
             return true;
     }
+    return false;
+}
+
+inline bool hasOverlappingPlacements(const std::vector<Nester::Placement>& placements)
+{
+    std::vector<Nester::Placement> previous;
+    previous.reserve(placements.size());
+
+    for (const auto& placement : placements) {
+        NestPoly poly = placement.polygon;
+        poly.translate(placement.offset);
+        if (overlapsAnyPlaced(poly, previous))
+            return true;
+        previous.push_back(placement);
+    }
+
     return false;
 }
 
@@ -219,6 +254,13 @@ inline NestPoint blSlide(const NestPoly& poly, NestPoint pos,
                          double stockW, double stockH)
 {
     Box2D bbox = calcBoundingBox(poly);
+    auto insideStockBounds = [&](const NestPoint& offset) {
+        return offset.x + bbox.left() >= -kNestEps
+            && offset.y + bbox.top() >= -kNestEps
+            && offset.x + bbox.right() <= stockW + kNestEps
+            && offset.y + bbox.bottom() <= stockH + kNestEps;
+    };
+
     double step = std::max(10.0, std::min(bbox.width(), bbox.height()) * 0.2);
     for (int iter = 0; iter < 15; ++iter) {
         NestPoint best = pos;
@@ -231,8 +273,7 @@ inline NestPoint blSlide(const NestPoly& poly, NestPoint pos,
                 double dy = dyArr[yi];
                 if (dx == 0 && dy == 0) continue;
                 NestPoint cand = {pos.x + dx, pos.y + dy};
-                if (cand.x < -kNestEps || cand.y < -kNestEps) continue;
-                if (cand.x > stockW + kNestEps || cand.y > stockH + kNestEps) continue;
+                if (!insideStockBounds(cand)) continue;
                 if (!isOutsideAllNfps(cand, nfpGroups)) continue;
                 if (cand.y < best.y - kNestEps || (std::fabs(cand.y - best.y) < kNestEps && cand.x < best.x)) {
                     best = cand;

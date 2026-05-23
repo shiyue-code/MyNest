@@ -250,6 +250,66 @@
      </property>
     </widget>
    </item>
+   <item row="4" column="2">
+    <widget class="QLabel" name="lblRandomShapeCount">
+     <property name="text">
+      <string>随机图形数:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="3">
+    <widget class="QSpinBox" name="spinRandomShapeCount">
+     <property name="minimum">
+      <number>1</number>
+     </property>
+     <property name="maximum">
+      <number>200</number>
+     </property>
+     <property name="value">
+      <number>5</number>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="4">
+    <widget class="QLabel" name="lblRandomAreaRange">
+     <property name="text">
+      <string>面积:</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="5">
+    <widget class="QDoubleSpinBox" name="spinRandomMinArea">
+     <property name="minimum">
+      <double>1.000000000000000</double>
+     </property>
+     <property name="maximum">
+      <double>999999.000000000000000</double>
+     </property>
+     <property name="value">
+      <double>800.000000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="6">
+    <widget class="QDoubleSpinBox" name="spinRandomMaxArea">
+     <property name="minimum">
+      <double>1.000000000000000</double>
+     </property>
+     <property name="maximum">
+      <double>999999.000000000000000</double>
+     </property>
+     <property name="value">
+      <double>6000.000000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="7" colspan="2">
+    <widget class="QPushButton" name="btnGenerateRandomShapes">
+     <property name="text">
+      <string>生成随机图形</string>
+     </property>
+    </widget>
+   </item>
    <item row="5" column="0" colspan="10">
     <widget class="QTableWidget" name="tblShapes">
      <property name="minimumSize">

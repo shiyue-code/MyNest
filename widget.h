@@ -32,6 +32,7 @@ private slots:
     void onExec();
     void onNest();
     void onAddShape();
+    void onGenerateRandomShapes();
     void onRemoveShape();
     void onClearShapes();
 
