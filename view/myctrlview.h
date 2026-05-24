@@ -4,7 +4,11 @@
 #include "kwctrlview.h"
 #include "nest/nfp_placer.h"
 
+#include <QString>
+#include <functional>
 #include <vector>
+
+class QLabel;
 
 enum {
     View,
@@ -17,6 +21,11 @@ class MyCtrlView : public KWCtrlView {
 public:
     using Polyline = S_Polyline2D;
     using Point = Polyline::Point;
+    enum class DisplayLayer {
+        FullScene,
+        FixedOnly,
+        MovingOnly
+    };
 
 public:
     MyCtrlView(QWidget* parent = nullptr);
@@ -25,6 +34,9 @@ public:
 
     void setMode(int mode);
     void setPointSize(int size);
+    void setDisplayLayer(DisplayLayer layer);
+    void setDefaultViewBounds(double width, double height);
+    void setPolylinesChangedCallback(std::function<void()> callback);
     void setNFPs(const std::vector<Polyline>& nfp);
     void setPolyline(const Polyline& fixed, const Polyline& moving);
     void startNfpAnimation();
@@ -46,6 +58,8 @@ protected:
     void DrawGLSence(QPainter& painter) override;
 
 private:
+    void updateMetricOverlay(const Polyline& polygon, double gridStep);
+
     int pointSize = 5;
 
     Polyline fixedPolygon;
@@ -58,6 +72,13 @@ private:
     size_t animationEdgeIndex = 0;
     double animationEdgeOffset = 0;
     double animationStep = 2.0;
+    DisplayLayer displayLayer = DisplayLayer::FullScene;
+    std::function<void()> polylinesChangedCallback;
+    bool hasDefaultViewBounds = false;
+    double defaultViewWidth = 400.0;
+    double defaultViewHeight = 400.0;
+    QLabel* metricOverlay = nullptr;
+    QString metricOverlayText;
 
     Polyline pTmp;
     Point ptCur;

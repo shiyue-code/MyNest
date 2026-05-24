@@ -5,6 +5,7 @@
 #include <QThread>
 #include <QWidget>
 #include <QPointer>
+#include <map>
 #include <vector>
 
 #include "nest/nest_scene.h"
@@ -15,7 +16,14 @@ class Widget;
 }
 QT_END_NAMESPACE
 
-class NestWindow;
+class QLabel;
+class MyCtrlView;
+class NestCanvasView;
+class QProgressBar;
+class QStackedWidget;
+class QVBoxLayout;
+class QTableWidget;
+class QWidget;
 namespace S_Shape2D { class Nester; }
 
 class Widget : public QWidget {
@@ -50,14 +58,44 @@ private:
     S_Shape2D::NestScene buildNestSceneFromUi();
     Polyline selectedSourcePolygon(QString* sourceName = nullptr);
     QColor colorForShape(int index) const;
+    void setupModernInterface();
+    void syncPreviewViews();
+    void updateNestSummaryTable();
+    void resetNestProgress(int totalPieces, int saIterations);
+    void setNestPhaseText(const QString& text);
+    void updateStatusCards(int totalPieces = -1, int placedPieces = -1, double utilization = -1.0);
 
     Ui::Widget* ui;
 
     QTimer timer;
-    QPointer<NestWindow> nestWindow;
     QThread* nestThread = nullptr;
     S_Shape2D::Nester* nester = nullptr;
     std::vector<S_Shape2D::ShapePrototype> shapeLibrary;
+    S_Shape2D::NestScene currentNestScene;
+    std::map<int, int> placedPrototypeCounts;
     int nextPrototypeId = 1;
+    int nestTotalPieces = 0;
+    int nestPlacedCount = 0;
+    int nestProcessedPieces = 0;
+    int nestSAIterations = 0;
+    enum NestPhase { NestPlacing, NestBLF, NestSA } currentNestPhase = NestPlacing;
+    QLabel* lblStatusShapes = nullptr;
+    QLabel* lblStatusTotal = nullptr;
+    QLabel* lblStatusPlaced = nullptr;
+    QLabel* lblStatusUnplaced = nullptr;
+    QLabel* lblStatusUtilization = nullptr;
+    MyCtrlView* fixedPreviewView = nullptr;
+    MyCtrlView* movingPreviewView = nullptr;
+    MyCtrlView* nestDrawView = nullptr;
+    NestCanvasView* nestCanvasView = nullptr;
+    QStackedWidget* workbenchCanvasStack = nullptr;
+    QTableWidget* tblNestSummary = nullptr;
+    QWidget* shapeCardsContainer = nullptr;
+    QVBoxLayout* shapeCardsLayout = nullptr;
+    QWidget* resultCardsContainer = nullptr;
+    QVBoxLayout* resultCardsLayout = nullptr;
+    QProgressBar* nestProgressBar = nullptr;
+    QLabel* lblNestPhase = nullptr;
+    bool syncingPreviewViews = false;
 };
 #endif // WIDGET_H

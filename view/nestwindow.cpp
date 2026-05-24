@@ -8,14 +8,70 @@
 #include <QCoreApplication>
 #include <QCloseEvent>
 #include <QHeaderView>
+#include <QIcon>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPixmap>
 #include <QTableWidgetItem>
 #include <QOpenGLFunctions>
 
 #include <algorithm>
 #include <cmath>
 #include <map>
+
+namespace {
+
+QIcon makePrototypeThumbnail(const S_Shape2D::Polyline2D& polygon, const QColor& color, const QSize& size = QSize(70, 46))
+{
+    QPixmap pixmap(size);
+    pixmap.fill(Qt::transparent);
+    if (polygon.size() < 3)
+        return QIcon(pixmap);
+
+    double left = polygon[0].x;
+    double right = polygon[0].x;
+    double top = polygon[0].y;
+    double bottom = polygon[0].y;
+    for (const auto& pt : polygon) {
+        left = std::min(left, pt.x);
+        right = std::max(right, pt.x);
+        top = std::min(top, pt.y);
+        bottom = std::max(bottom, pt.y);
+    }
+
+    const double shapeWidth = std::max(1e-6, right - left);
+    const double shapeHeight = std::max(1e-6, bottom - top);
+    const double margin = 5.0;
+    const double scale = std::min((size.width() - margin * 2.0) / shapeWidth,
+                                  (size.height() - margin * 2.0) / shapeHeight);
+    const double offsetX = (size.width() - shapeWidth * scale) * 0.5;
+    const double offsetY = (size.height() - shapeHeight * scale) * 0.5;
+
+    auto toThumb = [&](const S_Shape2D::Point2D& pt) {
+        return QPointF(offsetX + (pt.x - left) * scale,
+                       offsetY + (pt.y - top) * scale);
+    };
+
+    QPainterPath path;
+    path.moveTo(toThumb(polygon[0]));
+    for (size_t i = 1; i < polygon.size(); ++i)
+        path.lineTo(toThumb(polygon[i]));
+    path.closeSubpath();
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    QColor fill = color;
+    fill.setAlpha(90);
+    painter.setPen(QPen(color.darker(135), 2.0));
+    painter.setBrush(fill);
+    painter.drawPath(path);
+    painter.setBrush(color.darker(130));
+    painter.setPen(QPen(Qt::white, 1.0));
+    painter.drawEllipse(toThumb(polygon[0]), 3.0, 3.0);
+    return QIcon(pixmap);
+}
+
+}
 
 class NestWindow::NestView : public KWCtrlView {
 public:
@@ -283,7 +339,8 @@ NestWindow::NestWindow(QWidget* parent)
     tblSummary->horizontalHeader()->setStretchLastSection(true);
     tblSummary->setSelectionMode(QAbstractItemView::NoSelection);
     tblSummary->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    tblSummary->setMaximumWidth(260);
+    tblSummary->setIconSize(QSize(70, 46));
+    tblSummary->setMaximumWidth(330);
 
     progressBar = new QProgressBar(this);
     progressBar->setStyleSheet(
@@ -317,6 +374,8 @@ void NestWindow::updateSummaryTable()
         const auto& prototype = scene.prototypes[row];
 
         auto* nameItem = new QTableWidgetItem(prototype.name);
+        nameItem->setIcon(makePrototypeThumbnail(prototype.contour, prototype.color));
+        nameItem->setSizeHint(QSize(150, 54));
         nameItem->setBackground(prototype.color);
         nameItem->setForeground(prototype.color.lightness() < 128 ? Qt::white : Qt::black);
 
@@ -324,8 +383,8 @@ void NestWindow::updateSummaryTable()
         tblSummary->setItem(row, 1, new QTableWidgetItem(QString::number(prototype.quantity)));
         tblSummary->setItem(row, 2, new QTableWidgetItem(QString::number(placedPrototypeCounts[prototype.id])));
         tblSummary->setItem(row, 3, new QTableWidgetItem(QString::number(std::fabs(prototype.contour.area()), 'f', 1)));
+        tblSummary->setRowHeight(row, 56);
     }
-    tblSummary->resizeRowsToContents();
 }
 
 void NestWindow::beginNest(const Polyline& stock, int totalPieces, int saIterations)

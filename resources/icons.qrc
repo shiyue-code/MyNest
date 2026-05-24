@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>arrow_down.xpm</file>
+        <file>arrow_up.xpm</file>
+    </qresource>
+</RCC>

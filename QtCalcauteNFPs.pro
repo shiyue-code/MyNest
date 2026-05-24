@@ -26,7 +26,9 @@ SOURCES += \
     nest/nfp_placer_moving.cpp \
     nest/nfp_placer_vector.cpp \
     view/kwctrlview.cpp \
+    view/segmentedtabbar.cpp \
     view/myctrlview.cpp \
+    view/nestcanvasview.cpp \
     view/nestwindow.cpp \
     widget.cpp
 
@@ -47,12 +49,17 @@ HEADERS += \
     shapes/utiltool.h \
     test.h \
     view/kwctrlview.h \
+    view/segmentedtabbar.h \
     view/myctrlview.h \
+    view/nestcanvasview.h \
     view/nestwindow.h \
     widget.h
 
 FORMS += \
     widget.ui
+
+RESOURCES += \
+    resources/icons.qrc
 
 LIBS+= -lopengl32 -lglu32
 
