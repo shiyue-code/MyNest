@@ -3,4 +3,7 @@
         <file>arrow_down.xpm</file>
         <file>arrow_up.xpm</file>
     </qresource>
+    <qresource prefix="/">
+        <file>style.qss</file>
+    </qresource>
 </RCC>

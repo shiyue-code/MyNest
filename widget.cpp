@@ -27,6 +27,7 @@
 #include <QTableWidgetItem>
 #include <QThread>
 #include <QVBoxLayout>
+#include <QStyle>
 
 #include <algorithm>
 #include <cmath>
@@ -532,69 +533,6 @@ void Widget::setupModernInterface()
     ui->btnRemoveShape->setProperty("role", "danger");
     ui->btnClearShapes->setProperty("role", "danger");
 
-    setStyleSheet(
-        "QWidget { background: #F5F7FA; color: #1F2937; font-family: 'Microsoft YaHei', 'Segoe UI'; font-size: 13px; }"
-        "QLabel { background: transparent; }"
-        "QFrame#toolbar, QFrame#statusBar, QFrame#panel { background: #FFFFFF; border: 1px solid #DDE3EA; border-radius: 8px; }"
-        "QFrame#statusCardRow { background: transparent; border: none; }"
-        "QFrame#toolbar { border-radius: 0; border-left: none; border-right: none; border-top: none; }"
-        "QFrame#canvasFrame { background: #FFFFFF; border: 1px solid #DDE3EA; border-radius: 8px; }"
-        "QFrame#viewportPanel { background: #FFFFFF; border: 1px solid #DDE3EA; border-radius: 8px; }"
-        "QLabel#viewportTitle { color: #0F172A; font-size: 13px; font-weight: 600; background: transparent; }"
-        "QLabel#sectionTitle { color: #111827; font-size: 14px; font-weight: 600; background: transparent; }"
-        "QPushButton { background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 6px; padding: 7px 12px; min-height: 22px; }"
-        "QPushButton:hover { background: #EFF6FF; border-color: #93C5FD; }"
-        "QPushButton[role='primary'] { background: #2563EB; color: white; border-color: #2563EB; font-weight: 600; }"
-        "QPushButton[role='primary']:hover { background: #1D4ED8; }"
-        "QPushButton[role='accent'] { background: #0F766E; color: white; border-color: #0F766E; }"
-        "QPushButton[role='accent']:hover { background: #0D9488; }"
-        "QPushButton[role='danger'] { color: #B91C1C; border-color: #FCA5A5; }"
-        "QPushButton[role='danger']:hover { background: #FEF2F2; }"
-        "QComboBox { background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 6px; padding: 5px 30px 5px 8px; min-height: 24px; }"
-        "QComboBox:hover { border-color: #60A5FA; }"
-        "QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 26px; border: none; background: transparent; }"
-        "QComboBox::down-arrow { image: url(:/icons/arrow_down.xpm); width: 9px; height: 9px; margin-right: 8px; }"
-        "QComboBox QAbstractItemView { background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 6px; selection-background-color: #DBEAFE; selection-color: #1E3A8A; outline: none; padding: 4px; }"
-        "QSpinBox, QDoubleSpinBox { background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 6px; padding: 5px 24px 5px 8px; min-height: 24px; }"
-        "QSpinBox:hover, QDoubleSpinBox:hover { border-color: #60A5FA; }"
-        "QSpinBox::up-button, QDoubleSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 20px; border: none; background: transparent; }"
-        "QSpinBox::down-button, QDoubleSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 20px; border: none; background: transparent; }"
-        "QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { image: url(:/icons/arrow_up.xpm); width: 9px; height: 9px; }"
-        "QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { image: url(:/icons/arrow_down.xpm); width: 9px; height: 9px; }"
-        "QCheckBox { background: transparent; spacing: 8px; }"
-        "QCheckBox::indicator { width: 16px; height: 16px; border-radius: 8px; border: 1px solid #94A3B8; background: #FFFFFF; }"
-        "QCheckBox::indicator:hover { border-color: #2563EB; }"
-        "QCheckBox::indicator:checked { border: 1px solid #2563EB; background: #2563EB; }"
-        "QTableWidget { background: white; border: 1px solid #DDE3EA; border-radius: 8px; gridline-color: transparent; alternate-background-color: #F8FAFC; selection-background-color: #DBEAFE; selection-color: #1E3A8A; show-decoration-selected: 1; }"
-        "QHeaderView::section { background: #F1F5F9; color: #334155; border: none; padding: 7px; font-weight: 600; }"
-        "QScrollArea { background: transparent; border: none; }"
-        "QScrollBar:vertical { background: transparent; width: 8px; margin: 4px 0 4px 0; }"
-        "QScrollBar::handle:vertical { background: #CBD5E1; border-radius: 4px; min-height: 28px; }"
-        "QScrollBar::handle:vertical:hover { background: #94A3B8; }"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; border: none; background: transparent; }"
-        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
-        "QScrollBar:horizontal { background: transparent; height: 8px; margin: 0 4px 0 4px; }"
-        "QScrollBar::handle:horizontal { background: #CBD5E1; border-radius: 4px; min-width: 28px; }"
-        "QScrollBar::handle:horizontal:hover { background: #94A3B8; }"
-        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; border: none; background: transparent; }"
-        "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }"
-        "QProgressBar { background: #E2E8F0; border: none; border-radius: 8px; min-height: 16px; max-height: 16px; text-align: center; color: #0F172A; font-size: 11px; font-weight: 600; }"
-        "QProgressBar::chunk { background: #2563EB; border-radius: 8px; }"
-        "QFrame#cardListSurface { background: #FFFFFF; border: 1px solid #DDE3EA; border-radius: 8px; }"
-        "QFrame#shapeCard { background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; }"
-        "QFrame#shapeCard:hover { border-color: #93C5FD; background-color: #F1F5F9; }"
-        "QFrame#resultCard { background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; }"
-        "QLabel#cardTitle { color: #0F172A; font-size: 13px; font-weight: 700; background: transparent; }"
-        "QLabel#cardMeta { color: #64748B; font-size: 12px; background: transparent; }"
-        "QLabel#cardBadge { color: #334155; background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 8px; padding: 2px 7px; font-size: 12px; }"
-        "QLabel#shapeThumb { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; }"
-        "QProgressBar#miniProgress { background: #E2E8F0; border: none; border-radius: 3px; min-height: 6px; max-height: 6px; }"
-        "QProgressBar#miniProgress::chunk { background: #0F766E; border-radius: 3px; }"
-        "QFrame#statusCard { background: #FFFFFF; border: 1px solid #DDE3EA; border-radius: 8px; }"
-        "QLabel#statusTitle { color: #64748B; font-size: 12px; background: transparent; }"
-        "QLabel#statusValue { color: #0F172A; font-size: 18px; font-weight: 700; background: transparent; }"
-    );
-
     if (QLayout* oldLayout = layout()) {
         QLayoutItem* item = nullptr;
         while ((item = oldLayout->takeAt(0)) != nullptr)
@@ -978,11 +916,11 @@ void Widget::refreshShapeTable()
             cardLayout->setSpacing(10);
 
             auto* colorStrip = new QFrame(card);
+            colorStrip->setObjectName("colorStrip");
             colorStrip->setFixedWidth(4);
-            colorStrip->setStyleSheet(QString("background: rgba(%1, %2, %3, 200); border-top-left-radius:8px; border-bottom-left-radius:8px;")
-                                           .arg(prototype.color.red())
-                                           .arg(prototype.color.green())
-                                           .arg(prototype.color.blue()));
+            colorStrip->setProperty("colorIndex", row % 8);
+            colorStrip->style()->unpolish(colorStrip);
+            colorStrip->style()->polish(colorStrip);
             cardLayout->addWidget(colorStrip);
             cardLayout->addWidget(makeThumbnailLabel(prototype.contour, prototype.color, QSize(88, 62)), 0);
 
@@ -1427,7 +1365,7 @@ void Widget::OnSave()
     }
     else
     {
-        qDebug()<<u8"ÎÄ¼þ´ò¿ªµÄÊ±ºò³öÏÖ´íÎó " << file.errorString();
+        qDebug()<<u8"æ–‡ä»¶æ‰“å¼€çš„æ—¶å€™å‡ºçŽ°é”™è¯¯ " << file.errorString();
     }
 }
 
@@ -1459,7 +1397,7 @@ void Widget::OnLoad(const QString& absoluteFilePath)
     else
     {
         file.close();
-        qDebug()<<u8"ÎÄ¼þ´ò¿ªµÄÊ±ºò³öÏÖ´íÎó " << file.errorString();
+        qDebug()<<u8"æ–‡ä»¶æ‰“å¼€çš„æ—¶å€™å‡ºçŽ°é”™è¯¯ " << file.errorString();
     }
     if (fixedPreviewView && movingPreviewView) {
         fixedPreviewView->setPolyline(fixedPolygon, movingPolygon);
