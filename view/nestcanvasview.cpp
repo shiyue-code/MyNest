@@ -131,7 +131,9 @@ void NestCanvasView::DrawGLSence(QPainter& painter)
 {
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.fillRect(rect(), QColor("#F8FAFC"));
+
+    bool isDark = palette().color(QPalette::Window).lightness() < 128;
+    painter.fillRect(rect(), palette().color(QPalette::Window));
 
     if (!stock.empty())
         drawPolygon(painter, stock, QColor(100, 116, 139, 22), QColor("#94A3B8"), 2.0);
@@ -149,7 +151,7 @@ void NestCanvasView::DrawGLSence(QPainter& painter)
         S_Shape2D::Box2D box = S_Shape2D::calcBoundingBox(visual.polygon);
         QPointF labelPoint(box.center().x, box.center().y);
         View2Scr(labelPoint);
-        painter.setPen(QColor("#0F172A"));
+        painter.setPen(isDark ? QColor("#F1F5F9") : QColor("#0F172A"));
         painter.drawText(labelPoint, QString::number(++idx));
     }
 

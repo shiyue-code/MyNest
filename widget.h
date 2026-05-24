@@ -1,4 +1,4 @@
-﻿#ifndef WIDGET_H
+#ifndef WIDGET_H
 #define WIDGET_H
 
 #include <QTimer>
@@ -45,6 +45,7 @@ private slots:
     void onClearShapes();
 
     void onTimer();
+    void onThemeChanged(int index);
 
     void OnSave();
     void OnLoad(const QString& absoluteFilePath = QString());

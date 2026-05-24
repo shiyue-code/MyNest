@@ -426,7 +426,7 @@ void Widget::updateNestSummaryTable()
 
     for (const auto& prototype : currentNestScene.prototypes) {
         const int placed = placedPrototypeCounts[prototype.id];
-        const int requested = std::max(0, prototype.quantity);
+        const int requested = std::max(1, prototype.quantity);
         const int unplaced = std::max(0, requested - placed);
 
         auto* card = new QFrame(resultCardsContainer);
@@ -792,9 +792,25 @@ void Widget::setupModernInterface()
     statusLayout->addWidget(makeStatusCard(QString::fromWCharArray(L"\u5229\u7528\u7387"), lblStatusUtilization));
     nestWorkbenchLayout->addWidget(statusBar, 0);
 
+    auto* topBar = new QFrame(this);
+    topBar->setObjectName("toolbar");
+    auto* topBarLayout = new QHBoxLayout(topBar);
+    topBarLayout->setContentsMargins(12, 6, 12, 6);
+    topBarLayout->setSpacing(10);
+
     auto* mainTabBar = new SegmentedTabBar(this);
     mainTabBar->addTab(QString::fromWCharArray(L"NFP \u9A8C\u8BC1"));
     mainTabBar->addTab(QString::fromWCharArray(L"\u6392\u7248\u5DE5\u4F5C\u53F0"));
+
+    auto* skinCombo = new QComboBox(this);
+    skinCombo->setObjectName("skinCombo");
+    skinCombo->addItem(QString::fromWCharArray(L"\u6D45\u8272\u4E3B\u9898")); // 浅色主题
+    skinCombo->addItem(QString::fromWCharArray(L"\u6DF1\u8272\u4E3B\u9898")); // 深色主题
+    connect(skinCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &Widget::onThemeChanged);
+
+    topBarLayout->addWidget(mainTabBar, 0);
+    topBarLayout->addStretch(1);
+    topBarLayout->addWidget(skinCombo, 0);
 
     auto* mainStack = new QStackedWidget(this);
     mainStack->addWidget(nfpTab);
@@ -804,7 +820,7 @@ void Widget::setupModernInterface()
     auto* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
-    mainLayout->addWidget(mainTabBar, 0);
+    mainLayout->addWidget(topBar, 0);
     mainLayout->addWidget(mainStack, 1);
     setLayout(mainLayout);
 }
@@ -946,12 +962,12 @@ void Widget::refreshShapeTable()
             controlRow->addWidget(makeMetaLabel(QString::fromWCharArray(L"\u6570\u91CF")));
 
             auto* quantitySpin = new QSpinBox(card);
-            quantitySpin->setRange(0, 999);
-            quantitySpin->setValue(std::max(0, prototype.quantity));
+            quantitySpin->setRange(1, 999);
+            quantitySpin->setValue(std::max(1, prototype.quantity));
             quantitySpin->setFixedWidth(72);
             connect(quantitySpin, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, row](int value) {
                 if (row >= 0 && row < static_cast<int>(shapeLibrary.size())) {
-                    shapeLibrary[row].quantity = std::max(0, value);
+                    shapeLibrary[row].quantity = std::max(1, value);
                     updateStatusCards();
                     updateNestSummaryTable();
                 }
@@ -1016,7 +1032,7 @@ void Widget::syncShapeLibraryFromTable()
 
         bool ok = false;
         int quantity = ui->tblShapes->item(row, 1)->text().toInt(&ok);
-        shapeLibrary[row].quantity = ok ? std::max(0, quantity) : shapeLibrary[row].quantity;
+        shapeLibrary[row].quantity = ok ? std::max(1, quantity) : shapeLibrary[row].quantity;
     }
 }
 
@@ -1027,7 +1043,7 @@ void Widget::updateStatusCards(int totalPieces, int placedPieces, double utiliza
 
     int total = 0;
     for (const auto& prototype : shapeLibrary)
-        total += std::max(0, prototype.quantity);
+        total += std::max(1, prototype.quantity);
 
     if (totalPieces >= 0)
         total = totalPieces;
@@ -1046,6 +1062,21 @@ S_Shape2D::NestScene Widget::buildNestSceneFromUi()
 {
     syncShapeLibraryFromTable();
 
+    bool normalized = false;
+    for (auto& prototype : shapeLibrary) {
+        S_Shape2D::cleanPolygon(prototype.contour);
+        if (prototype.contour.orientation() == Polyline::Clockwise)
+            prototype.contour.reverse();
+
+        if (prototype.enabled && prototype.contour.size() >= 3 && prototype.quantity < 1) {
+            qDebug() << "Normalize shape quantity to 1 before nesting:" << prototype.name;
+            prototype.quantity = 1;
+            normalized = true;
+        }
+    }
+    if (normalized)
+        refreshShapeTable();
+
     S_Shape2D::NestScene scene;
     scene.stockWidth = ui->spinStockW->value();
     scene.stockHeight = ui->spinStockH->value();
@@ -1056,6 +1087,11 @@ S_Shape2D::NestScene Widget::buildNestSceneFromUi()
     scene.prototypes = shapeLibrary;
 
     scene.pieces = S_Shape2D::expandScenePieces(scene);
+    if (scene.pieces.size() != static_cast<size_t>(scene.totalQuantity())) {
+        qDebug() << "Nesting scene quantity mismatch, prototypes:" << scene.prototypes.size()
+                 << "total:" << scene.totalQuantity()
+                 << "pieces:" << scene.pieces.size();
+    }
     return scene;
 }
 
@@ -1404,4 +1440,23 @@ void Widget::OnLoad(const QString& absoluteFilePath)
         movingPreviewView->setPolyline(fixedPolygon, movingPolygon);
         syncPreviewViews();
     }
+}
+
+void Widget::onThemeChanged(int index)
+{
+    QString stylePath = (index == 0) ? ":/style.qss" : ":/style_dark.qss";
+    QFile file(stylePath);
+    if (file.open(QFile::ReadOnly)) {
+        QString styleSheet = QLatin1String(file.readAll());
+        qApp->setStyleSheet(styleSheet);
+        file.close();
+    } else {
+        qWarning("Failed to load QSS stylesheet: %s", qPrintable(stylePath));
+    }
+    
+    // Trigger update on drawing views to adapt to color changes
+    if (fixedPreviewView) fixedPreviewView->update();
+    if (movingPreviewView) movingPreviewView->update();
+    if (nestDrawView) nestDrawView->update();
+    if (nestCanvasView) nestCanvasView->update();
 }

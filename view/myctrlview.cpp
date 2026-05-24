@@ -1,4 +1,4 @@
-﻿#include "myctrlview.h"
+#include "myctrlview.h"
 
 #include "shapes/s_point.hpp"
 #include "shapes/s_polyline.hpp"
@@ -149,7 +149,9 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
 {
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.fillRect(rect(), QColor("#F8FAFC"));
+    
+    bool isDark = palette().color(QPalette::Window).lightness() < 128;
+    painter.fillRect(rect(), palette().color(QPalette::Window));
 
     auto toScreen = [this](const Point& pt) {
         QPointF screenPoint(pt.x, pt.y);
@@ -198,8 +200,8 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
         const double step = niceGridStep(span / 18.0);
         currentGridStep = step;
 
-        QPen minorPen(QColor("#E5EAF0"), 1);
-        QPen majorPen(QColor("#CBD5E1"), 1);
+        QPen minorPen(isDark ? QColor("#334155") : QColor("#E5EAF0"), 1);
+        QPen majorPen(isDark ? QColor("#475569") : QColor("#CBD5E1"), 1);
         QPen axisXPen(QColor("#EF4444"), 1.4);
         QPen axisYPen(QColor("#2563EB"), 1.4);
 
@@ -263,7 +265,7 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
         painter.setBrush(color);
         painter.drawEllipse(screenPoint, pointSize + 1, pointSize + 1);
 
-        painter.setPen(QColor("#111827"));
+        painter.setPen(isDark ? QColor("#F1F5F9") : QColor("#111827"));
         painter.drawText(screenPoint + QPointF(10, -10), text);
     };
 
@@ -283,7 +285,7 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
         painter.drawPath(path);
 
         const QRectF bounds = path.boundingRect();
-        painter.setPen(QColor("#0F172A"));
+        painter.setPen(isDark ? QColor("#F1F5F9") : QColor("#0F172A"));
         painter.drawText(bounds.center(), label);
         if (showReference)
             drawReferencePoint(poly[0], highlight ? QColor("#F59E0B") : stroke, QString("%1 Ref").arg(label));
@@ -385,7 +387,7 @@ void MyCtrlView::DrawGLSence(QPainter& painter)
     updateMetricOverlay(metricPoly, currentGridStep);
 
     if (showFullScene && fixedPolygon.empty() && movingPolygon.empty() && nfps.empty()) {
-        painter.setPen(QColor("#64748B"));
+        painter.setPen(isDark ? QColor("#94A3B8") : QColor("#64748B"));
         painter.drawText(rect(), Qt::AlignCenter,
                          QString::fromWCharArray(L"\u8BA1\u7B97 NFP \u540E\u663E\u793A\u8FD0\u52A8\u9A8C\u8BC1\u52A8\u753B"));
     }
