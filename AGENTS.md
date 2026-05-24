@@ -10,13 +10,17 @@ QtCalcauteNFPs is a C++ Qt Widgets application for computing and visualizing No-
 
 **Build commands (PowerShell):**
 ```powershell
-mkdir build-codex-qt5
-cd build-codex-qt5
+mkdir build-qt5
+cd build-qt5
 D:\Qt\5.15.2\mingw81_64\bin\qmake.exe ..\QtCalcauteNFPs.pro
 D:\Qt\Tools\mingw810_64\bin\mingw32-make.exe -j4
 ```
 
-**MSVC build:** Use `msvc_make.bat` which calls `jom.exe` (Qt Creator's parallel make).
+**Qt Creator build:**
+1. Open `QtCalcauteNFPs.pro` in Qt Creator.
+2. Select a kit such as `Desktop Qt 5.15.2 MSVC2019 64bit` or `Desktop Qt 5.15.2 MinGW 64-bit`.
+3. Run `Build > Run qmake` after opening the project or changing `.pro`.
+4. Run `Build > Build Project "QtCalcauteNFPs"`.
 
 **Important:** After adding/removing `.cpp` files, re-run `qmake` to regenerate the Makefile.
 
